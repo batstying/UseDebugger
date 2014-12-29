@@ -98,6 +98,10 @@ SOURCE=.\DllEvent.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\ExceptEvent.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\main.cpp
 # End Source File
 # Begin Source File
@@ -127,6 +131,10 @@ SOURCE=.\Common.h
 # Begin Source File
 
 SOURCE=.\DllEvent.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\ExceptEvent.h
 # End Source File
 # Begin Source File
 

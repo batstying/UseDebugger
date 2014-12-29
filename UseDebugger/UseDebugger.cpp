@@ -17,12 +17,23 @@
 //#define EXCEPTION_BREAKPOINT                STATUS_BREAKPOINT
 //#define EXCEPTION_SINGLE_STEP               STATUS_SINGLE_STEP
 
-//成员函数指针, 用于事件的分发，
+//function pointer, used for debug event dispatch
 typedef DWORD (CUseDebugger::*PFNDispatchEvent)(void);
 static map<DWORD, PFNDispatchEvent> gs_mapEventID_PFN;
 
-typedef void (CUseDebugger::*PFNDispatchInput)(int argc, int pargv[], const char *pszBuf);
-static map<char *, PFNDispatchInput> gs_mapInput_PFN;
+//for map<const char *, pfn>
+class Compare
+{
+public:
+    bool operator() (const char * pszSRC, const char * pszDST) const
+    {
+        return strcmp(pszSRC, pszDST) < 0;
+    }
+};
+
+//used for input dispatch
+typedef BOOL (CUseDebugger::*PFNDispatchInput)(int argc, int pargv[], const char *pszBuf);
+static map<const char *, PFNDispatchInput, Compare> gs_mapInput_PFN;
 
 /************************************************************************/
 /* 
@@ -46,9 +57,9 @@ CUseDebugger::DispatchCommand()
     DISPATCHEVENT(EXCEPTION_SINGLE_STEP,      CUseDebugger::OnSingleStep)
 
 #define DISPATCHINPUT(str, pfn)  gs_mapInput_PFN[str] = pfn;
-    //DISPATCHINPUT("bp",)
-
-    
+    DISPATCHINPUT("bm",     CUseDebugger::DoBM)
+    DISPATCHINPUT("bml",    CUseDebugger::DoBML)
+    DISPATCHINPUT("bmpl",    CUseDebugger::DoBMPL)    
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -64,6 +75,10 @@ CUseDebugger::CUseDebugger()
     m_pProcessEvent = NULL;
     m_pProcessEvent = new CProcessEvent;
     assert(m_pProcessEvent != NULL);
+
+    m_pExceptEvent = NULL;
+    m_pExceptEvent = new CExceptEvent;
+    assert(m_pExceptEvent != NULL);
 
     this->DispatchCommand();
 }
@@ -90,6 +105,14 @@ CUseDebugger::DestorySystem(void)
     delete this;
 }
 
+/************************************************************************/
+/* 
+Function : the main loop for our debugger
+1) show main menu
+2) debug event dispatch
+3) interact with user
+4) user input dispatch                                                  */
+/************************************************************************/
 void
 CUseDebugger::Run(void)
 {   
@@ -164,7 +187,11 @@ CUseDebugger::DebugAttachedProcess()
 
 /************************************************************************/
 /* 
-Function : the main part for debugging process, event dispatch                                                                     */
+Function : the main loop for our debugger
+1) show main menu
+2) debug event dispatch
+3) interact with user
+4) user input dispatch                                                  */
 /************************************************************************/
 BOOL
 CUseDebugger::DebugProcess()
@@ -174,13 +201,19 @@ CUseDebugger::DebugProcess()
     OPENTHREAD pfnOpenThread = (OPENTHREAD)GetProcAddress(GetModuleHandle("Kernel32"), "OpenThread");
     assert(pfnOpenThread != NULL);
 
-    //about input
+    //used for input decode
     int argc;
     int pargv[MAXBYTE];
 
-    map<DWORD, PFNDispatchEvent>::iterator it;
-    map<DWORD, PFNDispatchEvent>::iterator itend = gs_mapEventID_PFN.end();
+    //used for event dispatch
+    map<DWORD, PFNDispatchEvent>::iterator itevt;
+    map<DWORD, PFNDispatchEvent>::iterator itevtend = gs_mapEventID_PFN.end();
     PFNDispatchEvent pfnEvent = NULL;
+
+    //used for input dispatch
+    map<const char *, PFNDispatchInput, Compare>::iterator itinput;
+    map<const char *, PFNDispatchInput, Compare>::iterator itinputend = gs_mapInput_PFN.end();
+    PFNDispatchInput pfnInput = NULL;
 
     BOOL bRet       = TRUE;                      
     DWORD dwContinueStatus = DBG_EXCEPTION_NOT_HANDLED; 
@@ -227,22 +260,28 @@ CUseDebugger::DebugProcess()
             return FALSE;
         }
         
-        //事件分发
-        it = gs_mapEventID_PFN.find(m_debugEvent.dwDebugEventCode);
-        if (it != itend)
+        //debug event dispatch
+        itevt = gs_mapEventID_PFN.find(m_debugEvent.dwDebugEventCode);
+        if (itevt != itevtend)
         {
-            pfnEvent = (*it).second;
+            pfnEvent = (*itevt).second;
             dwContinueStatus = (this->*pfnEvent)();   
         }
 
         //interact with the user
         if (m_bTalk)
         {
-            this->CBaseEvent::ShowRegs();
+            this->CBaseEvent::DoShowRegs();
 
             m_pUI->GetInput(&argc, pargv, g_szBuf, MAXBUF);
-
             
+            //user input dispatch
+            itinput = gs_mapInput_PFN.find(g_szBuf);
+            if (itinput != itinputend)
+            {
+                pfnInput = (*itinput).second;
+                (this->*pfnInput)(argc, pargv, g_szBuf);   
+            }
 
             m_bTalk = FALSE;
         }
@@ -268,6 +307,10 @@ CUseDebugger::DebugProcess()
     return TRUE;
 }
 
+/************************************************************************/
+/* 
+Function : dispatch exception event                                                                     */
+/************************************************************************/
 DWORD
 CUseDebugger::OnExceptDispatch()
 {
@@ -276,7 +319,7 @@ CUseDebugger::OnExceptDispatch()
     PFNDispatchEvent pfnEvent = NULL;
     DWORD dwContinueStatus = DBG_EXCEPTION_NOT_HANDLED;
 
-    //事件分发
+    //dispatch
     it = gs_mapEventID_PFN.find(m_debugEvent.u.Exception.ExceptionRecord.ExceptionCode);
     if (it != itend)
     {
@@ -287,6 +330,15 @@ CUseDebugger::OnExceptDispatch()
     return dwContinueStatus;
 }
 
+/************************************************************************/
+/* 
+Function : all these used for event dispatch,
+          dispatch into different event processing functions
+1) Create(/Exit)Process(/Thread) --->CProcessEvent
+2) Load(/Unload)Dll --> CDllEvent
+3) DebugString --> CDllEvent
+4) Exception (BreakPoint, AccessViolation, SingleStep) --> CExceptEvent*/
+/************************************************************************/
 DWORD
 CUseDebugger::OnCreateThread()
 {
@@ -331,84 +383,94 @@ CUseDebugger::OnOutputDebugString()
 DWORD
 CUseDebugger::OnAccessViolation()
 {
-    DWORD dwContinueStatus = DBG_EXCEPTION_NOT_HANDLED; 
-    return dwContinueStatus;
+    return m_pExceptEvent->OnAccessViolation(this);
 }
 
 DWORD
 CUseDebugger::OnBreakPoint()
 {
-    DWORD dwContinueStatus = DBG_EXCEPTION_NOT_HANDLED;
-    
-    static BOOL bSysPoint = TRUE;
-    if (bSysPoint)
-    {
-        m_bTalk = TRUE;
-        bSysPoint = FALSE;
-        dwContinueStatus = DBG_CONTINUE;
-    }
-
-    return dwContinueStatus;
+    return m_pExceptEvent->OnBreakPoint(this);
 }
 
 DWORD
 CUseDebugger::OnSingleStep()
 {
-    DWORD dwContinueStatus = DBG_EXCEPTION_NOT_HANDLED; 
-    return dwContinueStatus;
+    return m_pExceptEvent->OnSingleStep(this);
 }
 
 /************************************************************************/
 /* 
-Function : dispatch different input to different functions                                                                    */
+Function : User input dispatch
+1) ShowASM, ShowData, ShowRegs --> CBaseEvent
+2) others (BP, BPL, BPC, BM, BH .etc) ---> CExceptEvent
+    put exception event, break point set function together
+    try to get easy maintainment                                      */
 /************************************************************************/
 void
-CUseDebugger::DispatchInput(int argc, int pargv[], const char *pszBuf)
-{
-   
-}
-
-void
-CUseDebugger::DoStepOver(int argc, int pargv[], const char *pszBuf)
-{
-
-}
-
-void
-CUseDebugger::DoStepInto(int argc, int pargv[], const char *pszBuf)
-{
-    
-}
-
-void
-CUseDebugger::DoRun(int argc, int pargv[], const char *pszBuf)
-{
-    
-}
-
-void
 CUseDebugger::DoShowASM(int argc, int pargv[], const char *pszBuf)
-{  
+{ 
+    //u
 }
 
 void
 CUseDebugger::DoShowData(int argc, int pargv[], const char *pszBuf)
-{  
+{ 
+    //d
 }
 
 void
-CUseDebugger::DoShowRegs(int argc, int pargv[], const char *pszBuf)
-{  
+CUseDebugger::DoShowRegs()
+{
+    //r
 }
 
-void
+//////////////////////////////////////////////////////////////////////////
+BOOL
+CUseDebugger::DoStepOver(int argc, int pargv[], const char *pszBuf)
+{
+    return m_pExceptEvent->DoStepOver(this, argc, pargv, pszBuf);
+}
+
+BOOL
+CUseDebugger::DoStepInto(int argc, int pargv[], const char *pszBuf)
+{
+    return m_pExceptEvent->DoStepInto(this, argc, pargv, pszBuf);
+}
+
+BOOL
+CUseDebugger::DoGo(int argc, int pargv[], const char *pszBuf)
+{
+    return m_pExceptEvent->DoGo(this, argc, pargv, pszBuf);
+}
+
+BOOL
 CUseDebugger::DoBP(int argc, int pargv[], const char *pszBuf)
-{  
+{ 
+    return m_pExceptEvent->DoBP(this, argc, pargv, pszBuf);
 }
 
-void
+BOOL
 CUseDebugger::DoBPL(int argc, int pargv[], const char *pszBuf)
+{ 
+    return m_pExceptEvent->DoBPL(this, argc, pargv, pszBuf);
+}
+
+BOOL
+CUseDebugger::DoBM(int argc, int pargv[], const char *pszBuf)
+{ 
+    return m_pExceptEvent->DoBM(this, argc, pargv, pszBuf);
+}
+
+BOOL
+CUseDebugger::DoBML(int argc, int pargv[], const char *pszBuf)
 {  
+    return m_pExceptEvent->DoBML(this, argc, pargv, pszBuf);
+}
+
+BOOL
+CUseDebugger::DoBMPL(int argc, int pargv[], const char *pszBuf)
+{  
+    return m_pExceptEvent->DoBMPL(this, argc, pargv, pszBuf);
 }
 
 

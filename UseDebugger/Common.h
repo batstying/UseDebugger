@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <assert.h>
 #include <map>
+#include <list>
+#include <algorithm>
 using namespace std;
 
 #define MAXBUF 1024

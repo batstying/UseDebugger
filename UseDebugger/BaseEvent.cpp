@@ -24,6 +24,9 @@ CBaseEvent::CBaseEvent()
     assert(m_pUI != NULL);
 
     m_bTalk = FALSE;
+
+    m_dwAddr = NULL;
+    m_bAccessVioTF = FALSE;
 }
 
 CBaseEvent::~CBaseEvent()
@@ -63,7 +66,7 @@ typedef struct _tagEFlags
 }tagEFlags;
 
 void 
-CBaseEvent::ShowRegs()
+CBaseEvent::DoShowRegs()
 {
     tagEFlags eflg = *(tagEFlags *)&m_Context.EFlags;
     _snprintf(g_szBuf, MAXBUF, "EAX=%08X ECX=%08X EDX=%08X EBX=%08X\r\n"
@@ -124,3 +127,14 @@ CBaseEvent::ShowOneASM()
     m_pUI->ShowInfo(g_szBuf);        
 }
 
+void
+CBaseEvent::DoShowASM(int argc, int pargv[], const char *pszBuf)
+{ 
+    //u
+}
+
+void
+CBaseEvent::DoShowData(int argc, int pargv[], const char *pszBuf)
+{ 
+    //d
+}

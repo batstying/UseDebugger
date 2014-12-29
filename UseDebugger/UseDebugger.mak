@@ -43,6 +43,7 @@ CLEAN :
 	-@erase "$(INTDIR)\BaseEvent.obj"
 	-@erase "$(INTDIR)\Common.obj"
 	-@erase "$(INTDIR)\DllEvent.obj"
+	-@erase "$(INTDIR)\ExceptEvent.obj"
 	-@erase "$(INTDIR)\main.obj"
 	-@erase "$(INTDIR)\ProcessEvent.obj"
 	-@erase "$(INTDIR)\UI.OBJ"
@@ -70,7 +71,8 @@ LINK32_OBJS= \
 	"$(INTDIR)\UseDebugger.obj" \
 	".\Decode2Asm.obj" \
 	".\Disasm.obj" \
-	".\Dsasm_Functions.obj"
+	".\Dsasm_Functions.obj" \
+	"$(INTDIR)\ExceptEvent.obj"
 
 "$(OUTDIR)\UseDebugger.exe" : "$(OUTDIR)" $(DEF_FILE) $(LINK32_OBJS)
     $(LINK32) @<<
@@ -92,6 +94,7 @@ CLEAN :
 	-@erase "$(INTDIR)\BaseEvent.obj"
 	-@erase "$(INTDIR)\Common.obj"
 	-@erase "$(INTDIR)\DllEvent.obj"
+	-@erase "$(INTDIR)\ExceptEvent.obj"
 	-@erase "$(INTDIR)\main.obj"
 	-@erase "$(INTDIR)\ProcessEvent.obj"
 	-@erase "$(INTDIR)\UI.OBJ"
@@ -122,7 +125,8 @@ LINK32_OBJS= \
 	"$(INTDIR)\UseDebugger.obj" \
 	".\Decode2Asm.obj" \
 	".\Disasm.obj" \
-	".\Dsasm_Functions.obj"
+	".\Dsasm_Functions.obj" \
+	"$(INTDIR)\ExceptEvent.obj"
 
 "$(OUTDIR)\UseDebugger.exe" : "$(OUTDIR)" $(DEF_FILE) $(LINK32_OBJS)
     $(LINK32) @<<
@@ -185,6 +189,11 @@ SOURCE=.\Common.cpp
 SOURCE=.\DllEvent.cpp
 
 "$(INTDIR)\DllEvent.obj" : $(SOURCE) "$(INTDIR)"
+
+
+SOURCE=.\ExceptEvent.cpp
+
+"$(INTDIR)\ExceptEvent.obj" : $(SOURCE) "$(INTDIR)"
 
 
 SOURCE=.\main.cpp

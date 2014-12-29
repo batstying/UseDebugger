@@ -11,6 +11,7 @@
 
 #include "DllEvent.h"
 #include "ProcessEvent.h"
+#include "ExceptEvent.h"
 
 class CUseDebugger : public CBaseEvent
 {
@@ -42,19 +43,24 @@ protected:
     virtual DWORD OnLoadDLL();         //-->CDllEvent
     virtual DWORD OnUnLoadDLL();       //-->CDllEvent
     virtual DWORD OnOutputDebugString();//-->CDllEvent
-
-    virtual DWORD OnAccessViolation();  //solved by ourself
-    virtual DWORD OnBreakPoint();       //solved by ourself
-    virtual DWORD OnSingleStep();       //solved by ourself
+    virtual DWORD OnAccessViolation();  //-->CExceptEvent
+    virtual DWORD OnBreakPoint();       //-->CExceptEvent
+    virtual DWORD OnSingleStep();       //-->CExceptEvent
 
     //classfied user input
-    virtual void DispatchInput(int argc, int pargv[], const char *pszBuf);
-    virtual void DoStepOver(int argc, int pargv[], const char *pszBuf);
-    virtual void DoStepInto(int argc, int pargv[], const char *pszBuf);
-    virtual void DoRun(int argc, int pargv[], const char *pszBuf);
-    virtual void DoShowData(int argc, int pargv[], const char *pszBuf);
-    virtual void DoShowRegs(int argc, int pargv[], const char *pszBuf);
-    
+    virtual void DoShowData(int argc, int pargv[], const char *pszBuf); //-->CBaseEvent
+    virtual void DoShowASM(int argc, int pargv[], const char *pszBuf);  //-->CBaseEvent
+    virtual void DoShowRegs();                                          //-->CBaseEvent
+
+    virtual BOOL DoStepOver(int argc, int pargv[], const char *pszBuf); //-->CExceptEvent
+    virtual BOOL DoStepInto(int argc, int pargv[], const char *pszBuf); //-->CExceptEvent
+    virtual BOOL DoGo(int argc, int pargv[], const char *pszBuf);      //-->CExceptEvent
+    virtual BOOL DoBPL(int argc, int pargv[], const char *pszBuf);      //-->CExceptEvent
+    virtual BOOL DoBM(int argc, int pargv[], const char *pszBuf);       //-->CExceptEvent
+    virtual BOOL DoBML(int argc, int pargv[], const char *pszBuf);      //-->CExceptEvent
+    virtual BOOL DoBMPL(int argc, int pargv[], const char *pszBuf);      //-->CExceptEvent
+public:
+    virtual BOOL DoBP(int argc, int pargv[], const char *pszBuf);       //-->CExceptEvent
 
 private:
     void DispatchCommand();
@@ -62,7 +68,7 @@ private:
 protected:
     CDllEvent *m_pDllEvent;
     CProcessEvent *m_pProcessEvent;
-
+    CExceptEvent *m_pExceptEvent;
 };
 
 #endif // !defined(AFX_USEDEBUGGER_H__2C1826AE_22DA_4F14_AA9D_8D88C3CC2A9F__INCLUDED_)

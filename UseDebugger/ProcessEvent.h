@@ -20,7 +20,7 @@ public:
 	DWORD OnExitProcess(const CBaseEvent *pEvent);
 	DWORD OnExitThread(const CBaseEvent *pEvent);
 	DWORD OnCreateThread(const CBaseEvent *pEvent);
-	DWORD OnCreateProcess(const CBaseEvent *pEvent);
+	DWORD OnCreateProcess(CBaseEvent *pEvent);
 	CProcessEvent();
 	virtual ~CProcessEvent();
 
