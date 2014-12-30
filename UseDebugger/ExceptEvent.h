@@ -67,7 +67,7 @@ typedef struct _tagNormalBP
     byte oldvalue;        //原字节
     byte bTmp:1;          //临时性，Debugger内部设置
     byte bPerment: 1;     //用户通过bp设置
-    byte bEnabled: 1;     //用户通过bd, be设置，以便disable, enable断点
+    //byte bEnabled: 1;     //用户通过bd, be设置，以便disable, enable断点
 }tagNormalBP;
 
 //////////////////////////////////////////////////////////////////////////
@@ -85,19 +85,22 @@ public:
 
     //user input
     virtual BOOL DoStepOver(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf); 
-    virtual BOOL DoStepInto(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf); 
+    virtual BOOL DoStepInto(CBaseEvent *pEvent/*, int argc, int pargv[], const char *pszBuf*/); 
     virtual BOOL DoGo(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf);      
     virtual BOOL DoBP(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf);       
-    virtual BOOL DoBPL(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf);      
+    virtual BOOL DoBPL(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf);
+    
     virtual BOOL DoBM(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf);       
     virtual BOOL DoBML(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf); 
     virtual BOOL DoBMPL(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf); 
+    virtual BOOL DoBMC(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf);
     
     //
     BOOL CheckBMValidity(CBaseEvent *pEvent, DWORD dwAddr, DWORD dwType, DWORD dwSize);
     BOOL IsPageValid(CBaseEvent *pEvent, DWORD dwAddr);
     BOOL HasMemBP(CBaseEvent *pEvent, DWORD dwAddr, tagPageBP **ppPageBP);
-    BOOL HasNormalBP(CBaseEvent *pEvent, DWORD dwAddr);
+    BOOL HasNormalBP(CBaseEvent *pEvent, DWORD dwAddr, tagNormalBP **ppNormalBP);
+    BOOL HasOtherMemBP(CBaseEvent *pEvent, DWORD dwPageAddr, tagPageBP **ppPageBP);
     
 protected:
     list<tagMemBP> m_lstMemBP;                 //独立的内存断点

@@ -9,9 +9,12 @@
 class CUI
 {
 public:
+      virtual ~CUI();
+public:
     //display menus
     virtual void ShowMainMenu(void);
-    virtual void ShowInfo(const char *pszInfo);
+    static void ShowInfo(const char *pszInfo);
+    static void ShowErrorMessage();
 
     //get input from user
     virtual void GetCH(char *pch);

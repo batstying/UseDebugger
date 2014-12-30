@@ -50,7 +50,10 @@ DWORD CProcessEvent::OnCreateProcess(CBaseEvent *pEvent)
     strcpy(g_szBuf, "bp");
     sprintf(&g_szBuf[3], "%p", processInfo.lpStartAddress);
     int argv[] = {0, 3};
+
+    ((CUseDebugger *)pEvent)->m_bTmpBP = TRUE;
     ((CUseDebugger *)pEvent)->DoBP(2, argv, g_szBuf);
+    pEvent->m_bTalk = FALSE;
 
     return dwContinueStatus;
 }

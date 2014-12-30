@@ -48,17 +48,19 @@ protected:
     virtual DWORD OnSingleStep();       //-->CExceptEvent
 
     //classfied user input
-    virtual void DoShowData(int argc, int pargv[], const char *pszBuf); //-->CBaseEvent
-    virtual void DoShowASM(int argc, int pargv[], const char *pszBuf);  //-->CBaseEvent
-    virtual void DoShowRegs();                                          //-->CBaseEvent
+    virtual BOOL DoShowData(int argc, int pargv[], const char *pszBuf); //-->CBaseEvent
+    virtual BOOL DoShowASM(int argc, int pargv[], const char *pszBuf);  //-->CBaseEvent
+    virtual BOOL DoShowRegs(int argc, int pargv[], const char *pszBuf); //-->CBaseEvent
 
     virtual BOOL DoStepOver(int argc, int pargv[], const char *pszBuf); //-->CExceptEvent
     virtual BOOL DoStepInto(int argc, int pargv[], const char *pszBuf); //-->CExceptEvent
     virtual BOOL DoGo(int argc, int pargv[], const char *pszBuf);      //-->CExceptEvent
     virtual BOOL DoBPL(int argc, int pargv[], const char *pszBuf);      //-->CExceptEvent
+
     virtual BOOL DoBM(int argc, int pargv[], const char *pszBuf);       //-->CExceptEvent
     virtual BOOL DoBML(int argc, int pargv[], const char *pszBuf);      //-->CExceptEvent
     virtual BOOL DoBMPL(int argc, int pargv[], const char *pszBuf);      //-->CExceptEvent
+    virtual BOOL DoBMC(int argc, int pargv[], const char *pszBuf);      //-->CExceptEvent
 public:
     virtual BOOL DoBP(int argc, int pargv[], const char *pszBuf);       //-->CExceptEvent
 

@@ -16,9 +16,5 @@ extern char g_szBuf[MAXBUF];
 void
 SafeClose(HANDLE handle);
 
-void
-ShowErrorMessage();
-
-
 
 #endif

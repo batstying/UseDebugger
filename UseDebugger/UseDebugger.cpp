@@ -59,7 +59,12 @@ CUseDebugger::DispatchCommand()
 #define DISPATCHINPUT(str, pfn)  gs_mapInput_PFN[str] = pfn;
     DISPATCHINPUT("bm",     CUseDebugger::DoBM)
     DISPATCHINPUT("bml",    CUseDebugger::DoBML)
-    DISPATCHINPUT("bmpl",    CUseDebugger::DoBMPL)    
+    DISPATCHINPUT("bmpl",   CUseDebugger::DoBMPL) 
+    DISPATCHINPUT("bmc",    CUseDebugger::DoBMC)
+    DISPATCHINPUT("bp",     CUseDebugger::DoBP);
+    DISPATCHINPUT("t",      CUseDebugger::DoStepInto);
+    DISPATCHINPUT("g",      CUseDebugger::DoGo);
+    DISPATCHINPUT("r",      CUseDebugger::DoShowRegs);
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -169,7 +174,7 @@ CUseDebugger::DebugNewProcess()
                     &pi);
     if(!bRet)
     {
-        ::ShowErrorMessage();
+        CUI::ShowErrorMessage();
         return FALSE;
 	}
 
@@ -222,7 +227,7 @@ CUseDebugger::DebugProcess()
         bRet = ::WaitForDebugEvent(&m_debugEvent, INFINITE); 
         if (!bRet)
         {
-            ::ShowErrorMessage();
+            CUI::ShowErrorMessage();
             return FALSE;
         }
 
@@ -237,7 +242,7 @@ CUseDebugger::DebugProcess()
                             );
         if (NULL == m_hProcess)
         {
-            ::ShowErrorMessage();
+            CUI::ShowErrorMessage();
             return FALSE;
         }
             
@@ -248,7 +253,7 @@ CUseDebugger::DebugProcess()
                     );
         if (NULL == m_hThread)
         {
-            ::ShowErrorMessage();
+            CUI::ShowErrorMessage();
             return FALSE;
         }
          
@@ -256,7 +261,7 @@ CUseDebugger::DebugProcess()
         bRet = ::GetThreadContext(m_hThread, &m_Context);
         if (!bRet)
         {
-            ::ShowErrorMessage();
+            CUI::ShowErrorMessage();
             return FALSE;
         }
         
@@ -269,10 +274,8 @@ CUseDebugger::DebugProcess()
         }
 
         //interact with the user
-        if (m_bTalk)
+        while (m_bTalk)
         {
-            this->CBaseEvent::DoShowRegs();
-
             m_pUI->GetInput(&argc, pargv, g_szBuf, MAXBUF);
             
             //user input dispatch
@@ -280,17 +283,19 @@ CUseDebugger::DebugProcess()
             if (itinput != itinputend)
             {
                 pfnInput = (*itinput).second;
-                (this->*pfnInput)(argc, pargv, g_szBuf);   
+                (this->*pfnInput)(argc, pargv, g_szBuf); 
             }
-
-            m_bTalk = FALSE;
+            else
+            {
+                m_pUI->ShowInfo("Invalid Input\r\n");
+            }
         }
 
         //restore context, and close handles      
         bRet = ::SetThreadContext(m_hThread, &m_Context);
         if (!bRet)
         {
-            ::ShowErrorMessage();
+            CUI::ShowErrorMessage();
             return FALSE;
         }
             
@@ -395,6 +400,7 @@ CUseDebugger::OnBreakPoint()
 DWORD
 CUseDebugger::OnSingleStep()
 {
+    //This is the debug event,  different from 't'
     return m_pExceptEvent->OnSingleStep(this);
 }
 
@@ -406,71 +412,111 @@ Function : User input dispatch
     put exception event, break point set function together
     try to get easy maintainment                                      */
 /************************************************************************/
-void
+BOOL
 CUseDebugger::DoShowASM(int argc, int pargv[], const char *pszBuf)
 { 
     //u
+    m_bTalk = TRUE;
+
+    return TRUE;
 }
 
-void
+BOOL
 CUseDebugger::DoShowData(int argc, int pargv[], const char *pszBuf)
 { 
     //d
+    m_bTalk = TRUE;
+
+    return TRUE;
 }
 
-void
-CUseDebugger::DoShowRegs()
+BOOL
+CUseDebugger::DoShowRegs(int argc, int pargv[], const char *pszBuf)
 {
     //r
+    m_bTalk = TRUE;
+
+    this->CBaseEvent::DoShowRegs();
+
+    return TRUE;
 }
 
 //////////////////////////////////////////////////////////////////////////
 BOOL
 CUseDebugger::DoStepOver(int argc, int pargv[], const char *pszBuf)
 {
-    return m_pExceptEvent->DoStepOver(this, argc, pargv, pszBuf);
+    //p
+    m_bTalk = FALSE;
+
+    m_pExceptEvent->DoStepOver(this, argc, pargv, pszBuf);
+
+    return TRUE;
 }
 
 BOOL
 CUseDebugger::DoStepInto(int argc, int pargv[], const char *pszBuf)
 {
-    return m_pExceptEvent->DoStepInto(this, argc, pargv, pszBuf);
+    //t
+    m_bUserTF = TRUE;
+    m_bTalk   = FALSE;
+
+    BOOL bRet = m_pExceptEvent->DoStepInto(this/*, argc, pargv, pszBuf*/);
+    this->CBaseEvent::DoShowRegs();
+
+    return bRet;
 }
 
 BOOL
 CUseDebugger::DoGo(int argc, int pargv[], const char *pszBuf)
 {
-    return m_pExceptEvent->DoGo(this, argc, pargv, pszBuf);
+    //g
+    m_bTalk = FALSE;
+
+    m_pExceptEvent->DoGo(this, argc, pargv, pszBuf);
+
+    return TRUE;
 }
 
 BOOL
 CUseDebugger::DoBP(int argc, int pargv[], const char *pszBuf)
 { 
+    m_bTalk = TRUE;
     return m_pExceptEvent->DoBP(this, argc, pargv, pszBuf);
 }
 
 BOOL
 CUseDebugger::DoBPL(int argc, int pargv[], const char *pszBuf)
 { 
+    m_bTalk = TRUE;
     return m_pExceptEvent->DoBPL(this, argc, pargv, pszBuf);
 }
 
 BOOL
 CUseDebugger::DoBM(int argc, int pargv[], const char *pszBuf)
 { 
+    m_bTalk = TRUE;
     return m_pExceptEvent->DoBM(this, argc, pargv, pszBuf);
 }
 
 BOOL
 CUseDebugger::DoBML(int argc, int pargv[], const char *pszBuf)
 {  
+    m_bTalk = TRUE;
     return m_pExceptEvent->DoBML(this, argc, pargv, pszBuf);
 }
 
 BOOL
 CUseDebugger::DoBMPL(int argc, int pargv[], const char *pszBuf)
 {  
+    m_bTalk = TRUE;
     return m_pExceptEvent->DoBMPL(this, argc, pargv, pszBuf);
+}
+
+BOOL
+CUseDebugger::DoBMC(int argc, int pargv[], const char *pszBuf)
+{
+    m_bTalk = TRUE;
+    return m_pExceptEvent->DoBMC(this, argc, pargv, pszBuf);
 }
 
 

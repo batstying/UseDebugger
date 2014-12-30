@@ -1,5 +1,12 @@
 #include "UI.H"
 
+static HANDLE g_hLog = INVALID_HANDLE_VALUE;
+//////////////////////////////////////////////////////////////////////////
+CUI::~CUI()
+{
+    SafeClose(g_hLog);
+}
+
 void
 CUI::ShowMainMenu(void)
 {
@@ -40,7 +47,7 @@ CUI::GetInput(int *pargc, int pargv[], char *pszBuf, SIZE_T nMaxBuf)
     int nIndex = 0;
     char ch;
 
-    printf(">> ");
+    ShowInfo(">> ");
     while (TRUE)
     {
         nRet = scanf("%255s", szBuf);
@@ -68,7 +75,6 @@ CUI::GetInput(int *pargc, int pargv[], char *pszBuf, SIZE_T nMaxBuf)
 
     *pargc = nCount;
 
-    
     fflush(stdin);
 }
 
@@ -95,11 +101,60 @@ BOOL CUI::SelectFile(char *pszFilePath, SIZE_T nMaxPath)
         lstrcpynA(pszFilePath, appPath, nMaxPath);
     }
 
+    //just a hack
+    g_hLog = CreateFile("c:\\debug_log.txt",
+                        FILE_APPEND_DATA,
+                        FILE_SHARE_READ,
+                        NULL,
+                        OPEN_ALWAYS,
+                        FILE_ATTRIBUTE_NORMAL,
+                        NULL
+                        );
+    
+    if (INVALID_HANDLE_VALUE == g_hLog)
+    {
+        ShowErrorMessage();
+    }
+
     return bRet;
 }
 
+static DWORD gs_dwReadWrite;
+static BOOL gs_bRet;
 void 
 CUI::ShowInfo(const char *pszInfo)
 {
     printf(pszInfo);
+
+    //also consider save to file in time, though efficiency...
+    gs_bRet = WriteFile(g_hLog,
+                  pszInfo,
+                  strlen(pszInfo),
+                  &gs_dwReadWrite,
+                  NULL);
+    if (!gs_bRet)
+    {
+        printf("Log error\r\n");
+    }
+}
+
+void 
+CUI::ShowErrorMessage()
+{
+    LPVOID lpMsgBuf;
+    FormatMessage( 
+        FORMAT_MESSAGE_ALLOCATE_BUFFER | 
+        FORMAT_MESSAGE_FROM_SYSTEM | 
+        FORMAT_MESSAGE_IGNORE_INSERTS,
+        NULL,
+        ::GetLastError(),
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
+        (LPSTR) &lpMsgBuf,
+        0,
+        NULL 
+        );
+    
+    ShowInfo((const char *)lpMsgBuf);
+    ShowInfo("\r\n");
+    LocalFree(lpMsgBuf);
 }

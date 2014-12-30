@@ -70,7 +70,7 @@ DWORD CDllEvent::OnOutputString(const CBaseEvent *pEvent)
     if (NULL == pstrBuf
         || NULL == pstrBufA)
     {
-        ShowErrorMessage();
+        CUI::ShowErrorMessage();
         return dwContinueStatus;
     }
 
@@ -81,7 +81,7 @@ DWORD CDllEvent::OnOutputString(const CBaseEvent *pEvent)
                             NULL);
     if (!bRet)
     {
-        ShowErrorMessage();
+        CUI::ShowErrorMessage();
         return dwContinueStatus;
     }
 
@@ -143,7 +143,7 @@ BOOL CDllEvent::GetImageName(const CBaseEvent *pEvent)
 
     if (!bRet)
     {
-        ShowErrorMessage();
+        CUI::ShowErrorMessage();
         return FALSE;
     }
 
@@ -155,7 +155,9 @@ BOOL CDllEvent::GetImageName(const CBaseEvent *pEvent)
 
     if (!bRet)
     {
-        ShowErrorMessage();
+        sprintf(szBufA, "%p ", loadDllInfo.lpBaseOfDll);
+        m_pUI->ShowInfo(szBufA);
+        CUI::ShowErrorMessage();
         return FALSE;
     }
 

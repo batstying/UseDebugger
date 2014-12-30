@@ -26,7 +26,12 @@ CBaseEvent::CBaseEvent()
     m_bTalk = FALSE;
 
     m_dwAddr = NULL;
+
     m_bAccessVioTF = FALSE;
+    m_bNormalBPTF = FALSE;
+    m_bUserTF     = FALSE;
+
+    m_bTmpBP = FALSE;
 }
 
 CBaseEvent::~CBaseEvent()
@@ -83,7 +88,7 @@ CBaseEvent::DoShowRegs()
     
     m_pUI->ShowInfo(g_szBuf);  
     
-    this->ShowOneASM();
+    this->ShowTwoASM();
 }
 
 //prototype
@@ -102,15 +107,15 @@ CBaseEvent::ShowOneASM()
     BOOL bRet;
     
     bRet = ReadProcessMemory(
-                    m_hProcess, 
-                    (LPVOID)m_Context.Eip,
-                    gs_szCodeBuf,
-                    sizeof(gs_szCodeBuf),
-                    NULL);
+                        m_hProcess, 
+                        (LPVOID)(m_Context.Eip),
+                        gs_szCodeBuf,
+                        sizeof(gs_szCodeBuf),
+                        NULL);
     
     if (!bRet)
     {
-        ShowErrorMessage();
+        CUI::ShowErrorMessage();
     }
     
     Decode2AsmOpcode((PBYTE)gs_szCodeBuf,
@@ -124,17 +129,64 @@ CBaseEvent::ShowOneASM()
                                 gs_szOpcode, 
                                 gs_szASM, 
                                 nCodeSize);
+    m_pUI->ShowInfo(g_szBuf);
+}
+void 
+CBaseEvent::ShowTwoASM()
+{
+    UINT nCodeSize;
+    UINT nCodeSize1;
+    BOOL bRet;
+    
+    bRet = ReadProcessMemory(
+                    m_hProcess, 
+                    (LPVOID)(m_Context.Eip),
+                    gs_szCodeBuf,
+                    sizeof(gs_szCodeBuf),
+                    NULL);
+    
+    if (!bRet)
+    {
+        CUI::ShowErrorMessage();
+    }
+    
+    Decode2AsmOpcode((PBYTE)gs_szCodeBuf,
+                    gs_szASM,
+                    gs_szOpcode, 
+                    &nCodeSize,
+                    m_Context.Eip);
+    
+    _snprintf(g_szBuf, MAXBUF, "%p:  %-16s   %-16s   [%d]\r\n",
+                                m_Context.Eip, 
+                                gs_szOpcode, 
+                                gs_szASM, 
+                                nCodeSize);
+    m_pUI->ShowInfo(g_szBuf);
+    
+    Decode2AsmOpcode((PBYTE)gs_szCodeBuf + nCodeSize,
+                        gs_szASM,
+                        gs_szOpcode, 
+                        &nCodeSize1,
+                        m_Context.Eip + nCodeSize);
+    
+    _snprintf(g_szBuf, MAXBUF, "%p:  %-16s   %-16s   [%d]\r\n",
+            m_Context.Eip + nCodeSize, 
+            gs_szOpcode, 
+            gs_szASM, 
+            nCodeSize1);
     m_pUI->ShowInfo(g_szBuf);        
 }
 
-void
+BOOL
 CBaseEvent::DoShowASM(int argc, int pargv[], const char *pszBuf)
 { 
     //u
+    return TRUE;
 }
 
-void
+BOOL
 CBaseEvent::DoShowData(int argc, int pargv[], const char *pszBuf)
 { 
     //d
+    return TRUE;
 }
