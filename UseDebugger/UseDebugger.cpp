@@ -65,6 +65,9 @@ CUseDebugger::DispatchCommand()
     DISPATCHINPUT("t",      CUseDebugger::DoStepInto);
     DISPATCHINPUT("g",      CUseDebugger::DoGo);
     DISPATCHINPUT("r",      CUseDebugger::DoShowRegs);
+    DISPATCHINPUT("bh",     CUseDebugger::DoBH);
+    DISPATCHINPUT("bhl",    CUseDebugger::DoBHL);
+    DISPATCHINPUT("bhc",    CUseDebugger::DoBHC);
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -264,6 +267,9 @@ CUseDebugger::DebugProcess()
             CUI::ShowErrorMessage();
             return FALSE;
         }
+
+        //just a trick
+        this->m_Context.Dr7 |= DR7INIT;
         
         //debug event dispatch
         itevt = gs_mapEventID_PFN.find(m_debugEvent.dwDebugEventCode);
@@ -330,7 +336,7 @@ CUseDebugger::OnExceptDispatch()
     {
         pfnEvent = (*it).second;
         dwContinueStatus = (this->*pfnEvent)();   
-     }
+    }
 
     return dwContinueStatus;
 }
@@ -437,7 +443,6 @@ CUseDebugger::DoShowRegs(int argc, int pargv[], const char *pszBuf)
     m_bTalk = TRUE;
 
     this->CBaseEvent::DoShowRegs();
-
     return TRUE;
 }
 
@@ -448,9 +453,7 @@ CUseDebugger::DoStepOver(int argc, int pargv[], const char *pszBuf)
     //p
     m_bTalk = FALSE;
 
-    m_pExceptEvent->DoStepOver(this, argc, pargv, pszBuf);
-
-    return TRUE;
+    return m_pExceptEvent->DoStepOver(this, argc, pargv, pszBuf);
 }
 
 BOOL
@@ -458,12 +461,8 @@ CUseDebugger::DoStepInto(int argc, int pargv[], const char *pszBuf)
 {
     //t
     m_bUserTF = TRUE;
-    m_bTalk   = FALSE;
-
-    BOOL bRet = m_pExceptEvent->DoStepInto(this/*, argc, pargv, pszBuf*/);
-    this->CBaseEvent::DoShowRegs();
-
-    return bRet;
+    m_bTalk = FALSE;
+    return m_pExceptEvent->DoStepInto(this/*, argc, pargv, pszBuf*/);    
 }
 
 BOOL
@@ -472,9 +471,7 @@ CUseDebugger::DoGo(int argc, int pargv[], const char *pszBuf)
     //g
     m_bTalk = FALSE;
 
-    m_pExceptEvent->DoGo(this, argc, pargv, pszBuf);
-
-    return TRUE;
+    return m_pExceptEvent->DoGo(this, argc, pargv, pszBuf);
 }
 
 BOOL
@@ -517,6 +514,27 @@ CUseDebugger::DoBMC(int argc, int pargv[], const char *pszBuf)
 {
     m_bTalk = TRUE;
     return m_pExceptEvent->DoBMC(this, argc, pargv, pszBuf);
+}
+
+BOOL
+CUseDebugger::DoBH(int argc, int pargv[], const char *pszBuf)
+{
+    m_bTalk = TRUE;
+    return m_pExceptEvent->DoBH(this, argc, pargv, pszBuf);
+}
+
+BOOL
+CUseDebugger::DoBHL(int argc, int pargv[], const char *pszBuf)
+{
+    m_bTalk = TRUE;
+    return m_pExceptEvent->DoBHL(this/*,argc, pargv, pszBuf*/);
+}
+
+BOOL 
+CUseDebugger::DoBHC(int argc, int pargv[], const char *pszBuf)
+{
+    m_bTalk = TRUE;
+    return m_pExceptEvent->DoBHC(this, argc, pargv, pszBuf);
 }
 
 

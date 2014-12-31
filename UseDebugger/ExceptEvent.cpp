@@ -165,10 +165,68 @@ CExceptEvent::OnBreakPoint(CBaseEvent *pEvent)
 
         pEvent->m_Context.Eip--;
         pEvent->m_bTalk = TRUE;
+        pEvent->DoShowRegs();
+
         return DBG_CONTINUE;
     }
     
     return dwContinueStatus;
+}
+
+/************************************************************************/
+/* 
+Function : Check whether hit the Hardware Breakpoint
+Params   : pEvent
+Return   : TRUE if yes, FALSE otherwise 
+Process  : check DR6
+                                                                               */
+/************************************************************************/
+BOOL
+CExceptEvent::HasHitHWBP(CBaseEvent *pEvent)
+{
+    DWORD dwIndex = 0;
+    dwIndex = (pEvent->m_Context.Dr6 & 0x0F);
+    if (0 == dwIndex)
+    {
+        return FALSE;
+    }
+
+    for (int i = 0; dwIndex != 1; i++)
+    {
+        dwIndex >>= 1;
+    }
+
+    dwIndex = i;
+    
+    tagHWBP hwBP;
+    hwBP.pDRAddr[0] = &pEvent->m_Context.Dr0;
+    hwBP.pDRAddr[1] = &pEvent->m_Context.Dr0;
+    hwBP.pDRAddr[2] = &pEvent->m_Context.Dr0;
+    hwBP.pDRAddr[3] = &pEvent->m_Context.Dr0;
+    
+    DWORD dwDR7 = pEvent->m_Context.Dr7;
+    DWORD dwLENRW = dwDR7 >> 16;
+    for (i = 0 ; i < dwIndex; i++)
+    {
+        dwLENRW >>= 4;
+    }
+
+    hwBP.dwAddr = *(hwBP.pDRAddr[dwIndex]);
+    hwBP.dwType = dwLENRW & 0x3;
+    dwLENRW >>= 2;
+    hwBP.dwLen = (dwLENRW & 0x03) + 1;
+    dwLENRW >>= 2;
+
+    pEvent->DoShowRegs();
+    sprintf(g_szBuf, "HWBP Hit: %p\t%d\t%s *****************\r\n",
+                                hwBP.dwAddr,
+                                hwBP.dwLen,
+                                (HWBP_EXECUTE == hwBP.dwType) ? STREXECUTE : 
+                                ((HWBP_WRITE == hwBP.dwType) ? STRWRITE: STRACCESS)
+            );
+    pEvent->m_pUI->ShowInfo(g_szBuf);
+    
+    return TRUE;
 }
 
 DWORD
@@ -176,6 +234,14 @@ CExceptEvent::OnSingleStep(CBaseEvent *pEvent)
 {
     assert(pEvent != NULL);
     DWORD dwContinueStatus = DBG_EXCEPTION_NOT_HANDLED;
+
+    //////////////////////////////////////////////////////////////////////////
+    //check hardware
+    if (HasHitHWBP(pEvent))
+    {
+        pEvent->m_bTalk = TRUE;
+        return DBG_CONTINUE;
+    }
     
     //////////////////////////////////////////////////////////////////////////
     //AccessViolation
@@ -228,11 +294,14 @@ CExceptEvent::OnSingleStep(CBaseEvent *pEvent)
         {
             CUI::ShowErrorMessage();
         }
+
+        if (pNomalBP->bPerment)
+        {
+            pEvent->DoShowRegs();
+        }
+
         return DBG_CONTINUE;
     }
-
-    //////////////////////////////////////////////////////////////////////////
-    //for Hardware BreakPoint
 
     //////////////////////////////////////////////////////////////////////////
     //now for user input 't'
@@ -240,6 +309,7 @@ CExceptEvent::OnSingleStep(CBaseEvent *pEvent)
     {
         pEvent->m_bUserTF = FALSE;
         pEvent->m_bTalk = TRUE;
+        pEvent->DoShowRegs();
         return DBG_CONTINUE;
     }
 
@@ -368,6 +438,7 @@ CExceptEvent::DoBP(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf
 
     BOOL bRet;
     DWORD dwAddr = strtoul(&pszBuf[pargv[1]], NULL, 16);
+    assert((dwAddr != 0) && (dwAddr != ULONG_MAX));
 
     //whether has the record, (but not sure tmp or permanent, //enabled or disabled)
     tagNormalBP *pNormalBP = NULL;
@@ -666,8 +737,11 @@ CExceptEvent::DoBM(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf
     assert(pEvent != NULL);
 
     DWORD dwAddr = strtoul(&pszBuf[pargv[1]], NULL, 16);
+    assert((dwAddr != 0) && (dwAddr != ULONG_MAX));
+
     char  bpType  = pszBuf[pargv[2]];
     DWORD dwSize = strtoul(&pszBuf[pargv[3]], NULL, 16);
+    assert((dwSize != 0) && (dwSize != ULONG_MAX));
     assert(('a' == bpType) || ('w' == bpType));
 
     //check address validity
@@ -789,6 +863,7 @@ CExceptEvent::DoBMC(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBu
 {
     //bmc id
     assert(pEvent != NULL);
+    assert(pszBuf != NULL);
     assert(2 == argc);
 
     DWORD i = 0;
@@ -910,5 +985,233 @@ CExceptEvent::DoBMC(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBu
         dwPageAddr += m_dwPageSize;        
     } 
 
+    return TRUE;
+}
+
+/************************************************************************/
+/* 
+Function : Set Hardware Break Point for the specified addr and len 
+Params   :  pHWBP contains the HWBP info by user
+
+Process  :
+          0) whether the addr valid
+          1) whether DR0 ~ DR3 available
+          2) fix the align 
+          */
+/************************************************************************/
+BOOL
+CExceptEvent::SetHWBP(CBaseEvent *pEvent, tagHWBP *pHWBP)
+{
+    assert(pEvent != NULL);
+    assert(pHWBP != NULL);
+
+    //whether the page valid
+    BOOL bRet = IsPageValid(pEvent, pHWBP->dwAddr);
+    if (!bRet)
+    {
+        return FALSE;
+    }
+
+    //fix align
+    if (0x01 == (pHWBP->dwAddr & 0x01))
+    {
+        pHWBP->dwLen = 1;
+    }
+    else if ((0x2 == (pHWBP->dwAddr & 0x2))
+            && (0x4 == pHWBP->dwLen)
+            )
+    {
+        pHWBP->dwLen = 2;
+    }
+
+    DWORD dwLen = pHWBP->dwLen - 1;  //00 ->1byte, 01 -> 2byte, 11 -> 3byte
+
+    //
+    tagDR7 *pdr7 = (tagDR7 *)(&pEvent->m_Context.Dr7);
+    pEvent->m_Context.Dr7 |= DR7INIT;
+    DWORD dwDR7 = pEvent->m_Context.Dr7;
+    DWORD dwCheck = 0x03;
+    DWORD dwSet   = 0x01;
+    DWORD dwLENRW = (((dwLen << 2) | pHWBP->dwType) << 16);
+    int i = 0;
+    for ( ; i < 4; i++)
+    {
+        //if both GX, LX is zero, then DRX is available
+        //or the same addr
+        if (0 == (dwDR7 & dwCheck)
+            || (*(pHWBP->pDRAddr[i]) ==pHWBP->dwAddr))
+        {
+            *(pHWBP->pDRAddr[i])  = pHWBP->dwAddr;    //DR0 = dwAddr   
+            pEvent->m_Context.Dr7 |= dwSet;                          //pdr7->GL0 = 1;
+            pEvent->m_Context.Dr7 |= dwLENRW;
+            break;
+        }
+
+        dwCheck <<= 2;
+        dwSet   <<= 2;
+        dwLENRW <<= 4;
+    }
+
+    //no availabe
+    if (4 == i)
+    {
+        return FALSE;
+    }
+
+    return TRUE;
+
+#if 0
+    //find the available DR0~DR3, can be more beautiful
+    DWORD *pDRX = NULL;
+    int nFree = -1;
+    tagDR7 *pdr7 = (tagDR7 *)(&pEvent->m_Context.Dr7);
+    if (0 == pdr7->GL0)
+    {
+        nFree = 0;
+        pDRX  = &pEvent->m_Context.Dr0;
+        pdr7->GL0 = 1;
+        pdr7->LEN0 = dwLen;
+        pdr7->RW0  = pHWBP->dwType;
+    }
+    else if (0 == pdr7->GL1)
+    {
+        nFree = 1;
+        pDRX  = &pEvent->m_Context.Dr1;
+        pdr7->GL1 = 1;
+        pdr7->LEN1 = dwLen;
+        pdr7->RW1  = pHWBP->dwType;
+    }
+    else if (0 == pdr7->GL2)
+    {
+        nFree = 2;
+        pDRX  = &pEvent->m_Context.Dr2;
+        pdr7->GL2 = 1;
+        pdr7->LEN2 = dwLen;
+        pdr7->RW2  = pHWBP->dwType;
+    }
+    else if (0 == pdr7->GL3)
+    {
+        nFree = 3;
+        pDRX  = &pEvent->m_Context.Dr3;
+        pdr7->GL3 = 1;
+        pdr7->LEN3 = dwLen;
+        pdr7->RW3  = pHWBP->dwType;
+    }
+    
+    if (-1 == nFree)
+    {
+        return FALSE;
+    }
+
+    return TRUE;
+#endif 
+}
+
+BOOL 
+CExceptEvent::DoBH(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf)
+{
+    //bh addr e|w|a 1|2|4
+    assert(pEvent != NULL);
+    assert(pszBuf != NULL);
+    assert(4 == argc);
+   
+    DWORD dwAddr = strtoul(&pszBuf[pargv[1]], NULL, 16);
+    assert((dwAddr != 0) && (dwAddr != ULONG_MAX));
+
+    char chType  = pszBuf[pargv[2]];
+    assert('e' == chType || 'w' == chType || 'a' == chType);
+    DWORD dwType = ('e' == chType) ? HWBP_EXECUTE : 
+                    (('w' == chType) ? HWBP_WRITE : HWBP_ACCESS );
+
+    char chLen   = pszBuf[pargv[3]];
+    assert('1' == chLen || '2' == chLen || '4' == chLen);
+    DWORD dwLen = strtoul(&chLen, NULL, 10);
+
+    //can be more beautiful, constructor
+    tagHWBP hwBP;
+    hwBP.dwAddr = dwAddr;
+    hwBP.dwType = dwType;
+    hwBP.dwLen  = dwLen;
+    hwBP.pDRAddr[0] = &pEvent->m_Context.Dr0;
+    hwBP.pDRAddr[1] = &pEvent->m_Context.Dr1;
+    hwBP.pDRAddr[2] = &pEvent->m_Context.Dr2;
+    hwBP.pDRAddr[3] = &pEvent->m_Context.Dr3;
+
+    SetHWBP(pEvent, &hwBP);
+
+    return TRUE;
+}
+
+BOOL 
+CExceptEvent::DoBHL(CBaseEvent *pEvent/*, int argc, int pargv[], const char *pszBuf*/)
+{
+    tagDR7 *pdr7 = (tagDR7 *)(&pEvent->m_Context.Dr7);
+    DWORD dwDR7 = pEvent->m_Context.Dr7;
+    DWORD dwCheck = 0x03;
+    DWORD dwLENRW = dwDR7 >> 16;
+    tagHWBP hwBP;
+    hwBP.pDRAddr[0] = &pEvent->m_Context.Dr0;   //can be more beautiful
+    hwBP.pDRAddr[1] = &pEvent->m_Context.Dr1;
+    hwBP.pDRAddr[2] = &pEvent->m_Context.Dr2;
+    hwBP.pDRAddr[3] = &pEvent->m_Context.Dr3;
+
+    sprintf(g_szBuf, "----------------硬件断点列表----------------\r\n"
+                     "序号\t地址\t\t长度\t类型\r\n");
+    int i = 0;
+    for ( ; i < 4; i++)
+    {
+        //if both GX, LX is zero, then DRX is not set
+        if (0 == (dwDR7 & dwCheck))
+        {
+            dwCheck <<= 2;
+            dwLENRW >>= 4;
+            continue;
+        }
+       
+        dwCheck <<= 2;
+
+        hwBP.dwAddr = *(hwBP.pDRAddr[i]);
+        hwBP.dwType = dwLENRW & 0x3;
+        dwLENRW >>= 2;
+        hwBP.dwLen = (dwLENRW & 0x03) + 1;
+        dwLENRW >>= 2;
+
+        _snprintf(g_szBuf, MAXBUF, "%s%d\t%p\t%d\t%s\r\n",
+                                    g_szBuf,
+                                    i,
+                                    hwBP.dwAddr,
+                                    hwBP.dwLen,
+                                    (HWBP_EXECUTE == hwBP.dwType) ? STREXECUTE : 
+                                    ((HWBP_WRITE == hwBP.dwType) ? STRWRITE: STRACCESS)
+                                    );
+    }
+
+    pEvent->m_pUI->ShowInfo(g_szBuf);
+
+    return TRUE;
+}  
+
+/************************************************************************/
+/* 
+Function : remove the specified HWBP                                   */
+/************************************************************************/
+BOOL 
+CExceptEvent::DoBHC(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf)
+{
+    //bhc id
+    assert(pEvent != NULL);
+    assert(pszBuf != NULL);
+
+    DWORD dwIndex = strtoul(&pszBuf[pargv[1]], NULL, 10);
+    assert(dwIndex <= 4);
+
+    DWORD dwSet = 0x3;
+    for (DWORD i = 0; i < dwIndex; i++)
+    {
+        dwSet <<= 2;
+    }
+
+    pEvent->m_Context.Dr7 &= (~dwSet);
+    
     return TRUE;
 }

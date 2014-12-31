@@ -61,6 +61,11 @@ protected:
     virtual BOOL DoBML(int argc, int pargv[], const char *pszBuf);      //-->CExceptEvent
     virtual BOOL DoBMPL(int argc, int pargv[], const char *pszBuf);      //-->CExceptEvent
     virtual BOOL DoBMC(int argc, int pargv[], const char *pszBuf);      //-->CExceptEvent
+
+    virtual BOOL DoBH(int argc, int pargv[], const char *pszBuf);       //-->CExceptEvent
+    virtual BOOL DoBHL(int argc, int pargv[], const char *pszBuf);       //-->CExceptEvent
+    virtual BOOL DoBHC(int argc, int pargv[], const char *pszBuf);       //-->CExceptEvent
+
 public:
     virtual BOOL DoBP(int argc, int pargv[], const char *pszBuf);       //-->CExceptEvent
 

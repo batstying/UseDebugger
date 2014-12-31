@@ -71,6 +71,57 @@ typedef struct _tagNormalBP
 }tagNormalBP;
 
 //////////////////////////////////////////////////////////////////////////
+//Structures about HardWare
+typedef struct _tagDR7
+{
+    unsigned char GL0: 2;
+    unsigned char GL1: 2;
+    unsigned char GL2: 2;
+    unsigned char GL3: 2;
+    unsigned char GLE: 2;     // 11
+    unsigned char Reserv0: 3; // 001
+    unsigned char GD : 1;     // 0
+    unsigned char Reserv1: 2; //00
+    unsigned char RW0: 2;
+    unsigned char LEN0: 2;
+    unsigned char RW1: 2;
+    unsigned char LEN1: 2;
+    unsigned char RW2: 2;
+    unsigned char LEN2: 2;
+    unsigned char RW3: 2;
+    unsigned char LEN3: 2;
+#define DR7INIT 0x00000700  //Reserv1:00 GD:0 Reserv0:001  GELE:11
+}tagDR7;
+
+typedef struct _tagDR6
+{
+    unsigned char B0:1;
+    unsigned char B1:1;
+    unsigned char B2:1;
+    unsigned char B3:1;
+    unsigned char Reserv0;      //11111111
+    unsigned char Reserv1:1;    //0
+    unsigned char BD:1;
+    unsigned char BS:1;
+    unsigned char BT:1;
+    WORD  Reserv2;              //set to 1
+}tagDR6;
+
+typedef struct _tagHWBP
+{
+    DWORD dwAddr;
+    DWORD dwType;
+    DWORD dwLen;
+    DWORD *pDRAddr[4];
+#define HWBP_EXECUTE 0  //break on instruction execution only
+#define HWBP_WRITE   1  //break on data writes only
+#define HWBP_ACCESS  3  //break on data reads or write but not instruction fetches
+#define STREXECUTE  "Execute"
+#define STRWRITE    "Write"
+#define STRACCESS   "Access"
+}tagHWBP;
+
+//////////////////////////////////////////////////////////////////////////
 class CExceptEvent : public CBaseEvent  
 {
 public:
@@ -94,13 +145,19 @@ public:
     virtual BOOL DoBML(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf); 
     virtual BOOL DoBMPL(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf); 
     virtual BOOL DoBMC(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf);
-    
+
+    virtual BOOL DoBH(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf); 
+    virtual BOOL DoBHL(CBaseEvent *pEvent/*, int argc, int pargv[], const char *pszBuf*/); 
+    virtual BOOL DoBHC(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf);
+protected:
     //
     BOOL CheckBMValidity(CBaseEvent *pEvent, DWORD dwAddr, DWORD dwType, DWORD dwSize);
     BOOL IsPageValid(CBaseEvent *pEvent, DWORD dwAddr);
     BOOL HasMemBP(CBaseEvent *pEvent, DWORD dwAddr, tagPageBP **ppPageBP);
     BOOL HasNormalBP(CBaseEvent *pEvent, DWORD dwAddr, tagNormalBP **ppNormalBP);
     BOOL HasOtherMemBP(CBaseEvent *pEvent, DWORD dwPageAddr, tagPageBP **ppPageBP);
+    BOOL SetHWBP(CBaseEvent *pEvent, tagHWBP *pHWBP);
+    BOOL HasHitHWBP(CBaseEvent *pEvent);
     
 protected:
     list<tagMemBP> m_lstMemBP;                 //独立的内存断点

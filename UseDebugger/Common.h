@@ -4,6 +4,8 @@
 #pragma warning(disable: 4786)
 #include <windows.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <limits.h>
 #include <assert.h>
 #include <map>
 #include <list>
