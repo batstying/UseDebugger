@@ -1,7 +1,16 @@
 #include "UI.H"
 
+//used for recording command history
+static char gs_szCommand[MAXBUF];   
+
 static HANDLE g_hLog = INVALID_HANDLE_VALUE;
 //////////////////////////////////////////////////////////////////////////
+CUI::CUI()
+{
+}
+
+BOOL CUI::m_bLog = FALSE;
+
 CUI::~CUI()
 {
     SafeClose(g_hLog);
@@ -39,7 +48,10 @@ Params   : pargc used to know how many words
               word1 NULL word2 NULL word3 NULL....*/
 /************************************************************************/
 void
-CUI::GetInput(int *pargc, int pargv[], char *pszBuf, SIZE_T nMaxBuf)
+CUI::GetInput(OUT int *pargc, 
+              OUT int pargv[], 
+              IN char *pszBuf, 
+              IN SIZE_T nMaxBuf)
 {
     char szBuf[MAXBYTE];
     int nRet;
@@ -49,9 +61,9 @@ CUI::GetInput(int *pargc, int pargv[], char *pszBuf, SIZE_T nMaxBuf)
 
     ShowInfo(">> ");
     while (TRUE)
-    {
+    {  
         nRet = scanf("%255s", szBuf);
-        if (EOF == nRet || '#' == szBuf[0])
+        if (EOF == nRet)
         {
             break;
         }
@@ -61,14 +73,33 @@ CUI::GetInput(int *pargc, int pargv[], char *pszBuf, SIZE_T nMaxBuf)
             break;
         }
 
+        //used for recording into command history
+        strcat(gs_szCommand, szBuf);
+        strcat(gs_szCommand, " ");
+
+        //command decode and save
         strcpy(&pszBuf[nIndex], szBuf);
         pargv[nCount] = nIndex;
         nIndex += (strlen(szBuf) + 1);
         nCount++;
 
+        //
+        if (m_bLog)
+        {
+            LogInfo(szBuf);
+            LogInfo(" ");
+        }
+
         ch = getchar();
         if('\n' == ch)
         {
+            strcat(gs_szCommand, "\n");
+
+            if (m_bLog)
+            {
+                LogInfo("\r\n");
+            }
+
             break;
         }
     }
@@ -99,43 +130,34 @@ BOOL CUI::SelectFile(char *pszFilePath, SIZE_T nMaxPath)
     if (bRet)
     {
         lstrcpynA(pszFilePath, appPath, nMaxPath);
-    }
-
-    //just a hack
-    g_hLog = CreateFile("c:\\debug_log.txt",
-                        FILE_APPEND_DATA,
-                        FILE_SHARE_READ,
-                        NULL,
-                        OPEN_ALWAYS,
-                        FILE_ATTRIBUTE_NORMAL,
-                        NULL
-                        );
-    
-    if (INVALID_HANDLE_VALUE == g_hLog)
-    {
-        ShowErrorMessage();
-    }
+    }   
 
     return bRet;
 }
 
 static DWORD gs_dwReadWrite;
 static BOOL gs_bRet;
-void 
-CUI::ShowInfo(const char *pszInfo)
+void CUI::LogInfo(const char *pszInfo)
 {
-    printf(pszInfo);
-
-    //also consider save to file in time, though efficiency...
     gs_bRet = WriteFile(g_hLog,
-                  pszInfo,
-                  strlen(pszInfo),
-                  &gs_dwReadWrite,
-                  NULL);
+                        pszInfo,
+                        strlen(pszInfo),
+                        &gs_dwReadWrite,
+                        NULL);
     if (!gs_bRet)
     {
         printf("Log error\r\n");
     }
+}
+
+void CUI::ShowInfo(const char *pszInfo)
+{
+    printf(pszInfo);
+    
+    if (m_bLog)
+    {
+        LogInfo(pszInfo);
+    }    
 }
 
 void 
@@ -157,4 +179,96 @@ CUI::ShowErrorMessage()
     ShowInfo((const char *)lpMsgBuf);
     ShowInfo("\r\n");
     LocalFree(lpMsgBuf);
+}
+
+/************************************************************************/
+/* 
+Function : export the user's command history                           */
+/************************************************************************/
+void CUI::ExportScript()
+{
+    BOOL bRet;
+    DWORD dwWrite;
+    char szFilePath[MAX_PATH];
+    bRet = SelectFile(szFilePath, MAX_PATH);
+    if (!bRet)
+    {
+        ShowErrorMessage();
+        return;
+    }
+
+    HANDLE hFile = CreateFile(szFilePath,
+                            GENERIC_WRITE,
+                            FILE_SHARE_READ,
+                            NULL,
+                            CREATE_ALWAYS,
+                            FILE_ATTRIBUTE_NORMAL,
+                            NULL
+                            );
+    
+    if (INVALID_HANDLE_VALUE == hFile)
+    {
+        ShowErrorMessage();
+        return;
+    }
+
+    bRet = WriteFile(hFile, 
+                  gs_szCommand,
+                  strlen(gs_szCommand),
+                  &dwWrite,
+                  NULL);
+    if (!bRet)
+    {
+        ShowErrorMessage();
+    }
+
+    if (hFile != NULL)  //what about invalid
+    {
+        CloseHandle(hFile);
+        hFile = NULL;
+    }
+}
+
+/************************************************************************/
+/* 
+Function : load and execute script saved before                                                                     */
+/************************************************************************/
+void CUI::ImportScript()
+{
+    BOOL bRet;
+    DWORD dwRead;
+    char szFilePath[MAX_PATH];
+    bRet = SelectFile(szFilePath, MAX_PATH);
+    if (!bRet)
+    {
+        ShowErrorMessage();
+        return;
+    }
+
+    
+}
+
+/************************************************************************/
+/* 
+Function : enable the run-time logging for everything
+          the user input, the output, whatever you can see on screen                                                                     */
+/************************************************************************/
+void CUI::Log()
+{    
+    g_hLog = CreateFile("c:\\DebugRunTime_log.txt",
+        FILE_APPEND_DATA,
+        FILE_SHARE_READ,
+        NULL,
+        OPEN_ALWAYS,
+        FILE_ATTRIBUTE_NORMAL,
+        NULL
+        );
+    
+    if (INVALID_HANDLE_VALUE == g_hLog)
+    {
+        ShowErrorMessage();
+        return;
+    }
+
+    m_bLog = TRUE;
 }

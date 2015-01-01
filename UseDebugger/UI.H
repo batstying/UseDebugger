@@ -9,11 +9,16 @@
 class CUI
 {
 public:
+      CUI();
       virtual ~CUI();
 public:
+    virtual void ExportScript();
+    virtual void Log();
+
     //display menus
     virtual void ShowMainMenu(void);
     static void ShowInfo(const char *pszInfo);
+    static void LogInfo(const char *pszInfo);
     static void ShowErrorMessage();
 
     //get input from user
@@ -35,6 +40,7 @@ public:
     //
     virtual BOOL SelectFile(char *pszPath, SIZE_T nMaxPath = MAX_PATH);
 protected:
+    static BOOL m_bLog;
 private:
 };
 

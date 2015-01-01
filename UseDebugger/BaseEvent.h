@@ -17,13 +17,8 @@ public:
 	CBaseEvent();
 	virtual ~CBaseEvent();
 
-public:
-    virtual BOOL DoShowData(int argc, int pargv[], const char *pszBuf); 
-    virtual BOOL DoShowASM(int argc, int pargv[], const char *pszBuf);
-    virtual void DoShowRegs();  
-    virtual void ShowOneASM();
-    virtual void ShowTwoASM();                                        
-    
+public: 
+    virtual BOOL IsCall(DWORD *pnLen);
 
 public:
     CUI *m_pUI;
@@ -39,6 +34,9 @@ public:
     BOOL  m_bAccessVioTF;   //single step for AccessViolation
     BOOL  m_bNormalBPTF;    //single step for NormalBP
     BOOL  m_bUserTF;        //step into by user
+    BOOL  m_bHWBPTF;        //used for HardWare Execution BreakPoint
+    BOOL  m_bStepOverTF;    //used for Step Over
+
     BOOL  m_bTmpBP;         //tmp NormalBP set by the Debugger self.
 };
 

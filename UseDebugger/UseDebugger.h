@@ -51,11 +51,14 @@ protected:
     virtual BOOL DoShowData(int argc, int pargv[], const char *pszBuf); //-->CBaseEvent
     virtual BOOL DoShowASM(int argc, int pargv[], const char *pszBuf);  //-->CBaseEvent
     virtual BOOL DoShowRegs(int argc, int pargv[], const char *pszBuf); //-->CBaseEvent
+    virtual BOOL DoShowHelp(int argc, int pargv[], const char *pszBuf);
+    virtual BOOL Quit(int argc, int pargv[], const char *pszBuf);
 
     virtual BOOL DoStepOver(int argc, int pargv[], const char *pszBuf); //-->CExceptEvent
     virtual BOOL DoStepInto(int argc, int pargv[], const char *pszBuf); //-->CExceptEvent
     virtual BOOL DoGo(int argc, int pargv[], const char *pszBuf);      //-->CExceptEvent
     virtual BOOL DoBPL(int argc, int pargv[], const char *pszBuf);      //-->CExceptEvent
+    virtual BOOL DoBPC(int argc, int pargv[], const char *pszBuf);      //-->CExceptEvent
 
     virtual BOOL DoBM(int argc, int pargv[], const char *pszBuf);       //-->CExceptEvent
     virtual BOOL DoBML(int argc, int pargv[], const char *pszBuf);      //-->CExceptEvent
@@ -65,6 +68,10 @@ protected:
     virtual BOOL DoBH(int argc, int pargv[], const char *pszBuf);       //-->CExceptEvent
     virtual BOOL DoBHL(int argc, int pargv[], const char *pszBuf);       //-->CExceptEvent
     virtual BOOL DoBHC(int argc, int pargv[], const char *pszBuf);       //-->CExceptEvent
+
+    //about script export, import, operation log
+    virtual BOOL DoExport(int argc, int pargv[], const char *pszBuf); 
+    virtual BOOL DoLog(int argc, int pargv[], const char *pszBuf);
 
 public:
     virtual BOOL DoBP(int argc, int pargv[], const char *pszBuf);       //-->CExceptEvent

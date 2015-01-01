@@ -112,7 +112,8 @@ typedef struct _tagHWBP
     DWORD dwAddr;
     DWORD dwType;
     DWORD dwLen;
-    DWORD *pDRAddr[4];
+    DWORD *pDRAddr[4];      //for DR0 ~ DR3
+    DWORD RW[4];          //for DR7:RW0 ~ RW3
 #define HWBP_EXECUTE 0  //break on instruction execution only
 #define HWBP_WRITE   1  //break on data writes only
 #define HWBP_ACCESS  3  //break on data reads or write but not instruction fetches
@@ -135,11 +136,12 @@ public:
     virtual DWORD OnSingleStep(CBaseEvent *pEvent);
 
     //user input
-    virtual BOOL DoStepOver(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf); 
+    virtual BOOL DoStepOver(CBaseEvent *pEvent/*, int argc, int pargv[], const char *pszBuf*/); 
     virtual BOOL DoStepInto(CBaseEvent *pEvent/*, int argc, int pargv[], const char *pszBuf*/); 
     virtual BOOL DoGo(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf);      
     virtual BOOL DoBP(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf);       
-    virtual BOOL DoBPL(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf);
+    virtual BOOL DoBPL(CBaseEvent *pEvent/*, int argc, int pargv[], const char *pszBuf*/);
+    virtual BOOL DoBPC(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf);       
     
     virtual BOOL DoBM(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf);       
     virtual BOOL DoBML(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf); 
@@ -149,6 +151,14 @@ public:
     virtual BOOL DoBH(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf); 
     virtual BOOL DoBHL(CBaseEvent *pEvent/*, int argc, int pargv[], const char *pszBuf*/); 
     virtual BOOL DoBHC(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf);
+
+    //show
+    virtual BOOL DoShowData(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf); 
+    virtual BOOL DoShowASM(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf);
+    virtual void ShowOneASM(CBaseEvent *pEvent, DWORD dwAddr = NULL, UINT *pnCodeSize = NULL);
+    virtual void ShowTwoASM(CBaseEvent *pEvent, DWORD dwAddr = NULL); 
+    virtual void DoShowRegs(CBaseEvent *pEvent); 
+
 protected:
     //
     BOOL CheckBMValidity(CBaseEvent *pEvent, DWORD dwAddr, DWORD dwType, DWORD dwSize);

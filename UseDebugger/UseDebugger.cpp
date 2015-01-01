@@ -3,6 +3,8 @@
 //////////////////////////////////////////////////////////////////////
 #include "UseDebugger.h"
 
+BOOL gs_bContinue = TRUE;
+
 //////////////////////////////////////////////////////////////////////////
 // #define EXCEPTION_DEBUG_EVENT       1
 // #define CREATE_THREAD_DEBUG_EVENT   2
@@ -62,12 +64,22 @@ CUseDebugger::DispatchCommand()
     DISPATCHINPUT("bmpl",   CUseDebugger::DoBMPL) 
     DISPATCHINPUT("bmc",    CUseDebugger::DoBMC)
     DISPATCHINPUT("bp",     CUseDebugger::DoBP);
+    DISPATCHINPUT("bpl",    CUseDebugger::DoBPL);
+    DISPATCHINPUT("bpc",    CUseDebugger::DoBPC);
     DISPATCHINPUT("t",      CUseDebugger::DoStepInto);
     DISPATCHINPUT("g",      CUseDebugger::DoGo);
     DISPATCHINPUT("r",      CUseDebugger::DoShowRegs);
     DISPATCHINPUT("bh",     CUseDebugger::DoBH);
     DISPATCHINPUT("bhl",    CUseDebugger::DoBHL);
     DISPATCHINPUT("bhc",    CUseDebugger::DoBHC);
+    DISPATCHINPUT("p",      CUseDebugger::DoStepOver);
+    DISPATCHINPUT("u",      CUseDebugger::DoShowASM);
+    DISPATCHINPUT("d",      CUseDebugger::DoShowData);
+    DISPATCHINPUT("?",      CUseDebugger::DoShowHelp);
+    DISPATCHINPUT("help",   CUseDebugger::DoShowHelp);
+    //DISPATCHINPUT("q",      CUseDebugger::Quit);
+    DISPATCHINPUT("es",     CUseDebugger::DoExport);
+    DISPATCHINPUT("log",    CUseDebugger::DoLog);
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -225,7 +237,7 @@ CUseDebugger::DebugProcess()
 
     BOOL bRet       = TRUE;                      
     DWORD dwContinueStatus = DBG_EXCEPTION_NOT_HANDLED; 
-    while (TRUE)
+    while (gs_bContinue)
     {         
         bRet = ::WaitForDebugEvent(&m_debugEvent, INFINITE); 
         if (!bRet)
@@ -423,8 +435,7 @@ CUseDebugger::DoShowASM(int argc, int pargv[], const char *pszBuf)
 { 
     //u
     m_bTalk = TRUE;
-
-    return TRUE;
+    return m_pExceptEvent->DoShowASM(this, argc, pargv, pszBuf);
 }
 
 BOOL
@@ -433,6 +444,7 @@ CUseDebugger::DoShowData(int argc, int pargv[], const char *pszBuf)
     //d
     m_bTalk = TRUE;
 
+    m_pExceptEvent->DoShowData(this, argc, pargv, pszBuf);
     return TRUE;
 }
 
@@ -441,8 +453,40 @@ CUseDebugger::DoShowRegs(int argc, int pargv[], const char *pszBuf)
 {
     //r
     m_bTalk = TRUE;
+    m_pExceptEvent->DoShowRegs(this);
+    return TRUE;
+}
 
-    this->CBaseEvent::DoShowRegs();
+BOOL
+CUseDebugger::DoShowHelp(int argc, int pargv[], const char *pszBuf)
+{
+    static char szBuf[1024];
+    _snprintf(szBuf, 1024, "----------------帮助-----------------\r\n"
+                            "命令   格式                作用\r\n"  
+                            "bm     bm addr a|w len     内存断点设置\r\n"			 
+                            "bml    bml                 内存断点查看\r\n"
+                            "bmpl   bmpl                分页内内存断点查看\r\n"
+                            "bmc    bmc id (from bml)   硬件断点删除\r\n"
+                            "bp     bp addr             一般断点设置\r\n"
+                            "bpl    bpl                 一般断点查看\r\n"
+                            "bpc    bpc id (from bpl)   一般断点删除\r\n"
+                            "bh     bh addr e|w|a 1|2|4 硬件断点设置\r\n"
+                            "bhl    bhl                 硬件断点查看\r\n"
+                            "bhc    bhc id (from bhl)   硬件断点删除\r\n"
+                            "t      t                   步入        \r\n"
+                            "p      p                   步过\r\n"
+                            "g      g [addr]            运行\r\n"
+                            "r      r                   寄存器查看\r\n"
+                            "u      u [addr]            汇编查看\r\n"
+                            "d      d [addr]            内存数据查看\r\n"
+                            //"q      q                   退出当前调试\r\n"
+                            "?      ?                   帮助\r\n"
+                            "help   help                帮助\r\n"
+                            "log    log                 记录所有\r\n"
+                            );
+
+    m_pUI->ShowInfo(szBuf);
+
     return TRUE;
 }
 
@@ -452,8 +496,7 @@ CUseDebugger::DoStepOver(int argc, int pargv[], const char *pszBuf)
 {
     //p
     m_bTalk = FALSE;
-
-    return m_pExceptEvent->DoStepOver(this, argc, pargv, pszBuf);
+    return m_pExceptEvent->DoStepOver(this/*, argc, pargv, pszBuf*/);
 }
 
 BOOL
@@ -470,7 +513,6 @@ CUseDebugger::DoGo(int argc, int pargv[], const char *pszBuf)
 {
     //g
     m_bTalk = FALSE;
-
     return m_pExceptEvent->DoGo(this, argc, pargv, pszBuf);
 }
 
@@ -485,7 +527,14 @@ BOOL
 CUseDebugger::DoBPL(int argc, int pargv[], const char *pszBuf)
 { 
     m_bTalk = TRUE;
-    return m_pExceptEvent->DoBPL(this, argc, pargv, pszBuf);
+    return m_pExceptEvent->DoBPL(this/*, argc, pargv, pszBuf*/);
+}
+
+BOOL
+CUseDebugger::DoBPC(int argc, int pargv[], const char *pszBuf)
+{
+    m_bTalk = TRUE;
+    return m_pExceptEvent->DoBPC(this, argc, pargv, pszBuf);
 }
 
 BOOL
@@ -535,6 +584,38 @@ CUseDebugger::DoBHC(int argc, int pargv[], const char *pszBuf)
 {
     m_bTalk = TRUE;
     return m_pExceptEvent->DoBHC(this, argc, pargv, pszBuf);
+}
+
+BOOL
+CUseDebugger::Quit(int argc, int pargv[], const char *pszBuf)    
+{
+    m_bTalk = FALSE;
+    gs_bContinue = FALSE;
+    return TRUE;
+}
+
+/************************************************************************/
+/* 
+Function : save all the user input (during debugging) into file                                                                      */
+/************************************************************************/
+BOOL
+CUseDebugger::DoExport(int argc, int pargv[], const char *pszBuf)
+{
+    m_pUI->ExportScript();
+    return TRUE;
+}
+
+/************************************************************************/
+/* 
+Function : save all the operations, outputs, whatever you can see on screen 
+            into file in time                                            */
+/************************************************************************/
+BOOL 
+CUseDebugger::DoLog(int argc, int pargv[], const char *pszBuf)
+{
+    m_bTalk = TRUE;
+    m_pUI->Log();
+    return TRUE;
 }
 
 

@@ -15,6 +15,16 @@ using namespace std;
 #define MAXBUF 1024
 extern char g_szBuf[MAXBUF];
 
+//prototype
+extern "C"
+void
+__stdcall
+Decode2AsmOpcode(IN PBYTE pCodeEntry,   // 需要解析指令地址
+                 OUT char* strAsmCode,        // 得到反汇编指令信息
+                 OUT char* strOpcode,         // 解析机器码信息
+                 OUT UINT* pnCodeSize,        // 解析指令长度
+                 IN UINT nAddress);
+
 void
 SafeClose(HANDLE handle);
 
