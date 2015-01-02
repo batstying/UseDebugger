@@ -31,6 +31,7 @@ CUI::ShowMainMenu(void)
     printf("============UseDebugger============\r\n"
            "1. Debug New Process\r\n"
            "2. Debug Active Process\r\n"
+           "3. Help\r\n"
            "0. Quit\r\n"
            "===================================\r\n"
            "Please Enter Your Choice By Number:\r\n");
@@ -162,7 +163,9 @@ BOOL CUI::SelectFile(char *pszFilePath, SIZE_T nMaxPath)
     
     RtlZeroMemory(&ofn,sizeof(ofn));
     ofn.lStructSize = sizeof(ofn);
-    ofn.lpstrFilter = TEXT("Executable Files\0*.exe;*.com;*.bat;*.pif\0All Files(*.*)\0*.*\0");
+    //ofn.lpstrFilter = TEXT("Executable Files\0*.exe;*.com;*.bat;*.pif\0All Files(*.*)\0*.*\0");
+    ofn.lpstrFilter = TEXT("All Files(*.*)\0*.*\0");
+
     ofn.lpstrFile   = appPath;
     ofn.nMaxFile    = MAX_PATH;
     ofn.Flags       = OFN_PATHMUSTEXIST|OFN_HIDEREADONLY|OFN_LONGNAMES;
@@ -300,15 +303,25 @@ Function : enable the run-time logging for everything
           the user input, the output, whatever you can see on screen                                                                     */
 /************************************************************************/
 void CUI::Log()
-{    
-    g_hLog = CreateFile("c:\\DebugRunTime_log.txt",
-        FILE_APPEND_DATA,
-        FILE_SHARE_READ,
-        NULL,
-        OPEN_ALWAYS,
-        FILE_ATTRIBUTE_NORMAL,
-        NULL
-        );
+{   
+    printf("Please Select the File You want to Save the log:\r\n");
+
+    char szFilePath[MAX_PATH];
+    BOOL bRet = SelectFile(szFilePath, MAX_PATH);
+    if (!bRet)
+    {
+        ShowErrorMessage();
+        return;
+    }
+
+    g_hLog = CreateFile(szFilePath,
+                        FILE_APPEND_DATA,
+                        FILE_SHARE_READ,
+                        NULL,
+                        OPEN_ALWAYS,
+                        FILE_ATTRIBUTE_NORMAL,
+                        NULL
+                        );
     
     if (INVALID_HANDLE_VALUE == g_hLog)
     {

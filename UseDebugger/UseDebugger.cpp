@@ -152,6 +152,10 @@ CUseDebugger::Run(void)
         {
             bRet = this->DebugAttachedProcess();  
         }
+        else if (ch == '3')
+        {
+            bRet = this->DoShowHelp();
+        }
         else if (ch == '0')
         {
             break;
@@ -475,7 +479,7 @@ CUseDebugger::DoShowRegs(int argc, int pargv[], const char *pszBuf)
 }
 
 BOOL
-CUseDebugger::DoShowHelp(int argc, int pargv[], const char *pszBuf)
+CUseDebugger::DoShowHelp(int argc/*=NULL*/, int pargv[]/*=NULL*/, const char *pszBuf/*=NULL*/)
 {
     static char szBuf[1024];
     _snprintf(szBuf, 1024, "----------------°ïÖú-----------------\r\n"

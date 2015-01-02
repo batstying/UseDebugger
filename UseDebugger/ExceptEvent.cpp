@@ -38,6 +38,9 @@ CheckHitMemBP(CBaseEvent *pEvent, DWORD dwAddr, tagPageBP *ppageBP)
 {
     assert(ppageBP != NULL);
     DWORD dwOffset = dwAddr - ppageBP->dwPageAddr;
+    BOOL bRet = FALSE;
+
+    g_szBuf[0] = '\0';
 
     tagMemBPInPage *pmemBPInPage = NULL;
     list<tagMemBPInPage>::iterator it;
@@ -50,11 +53,22 @@ CheckHitMemBP(CBaseEvent *pEvent, DWORD dwAddr, tagPageBP *ppageBP)
             && dwOffset < pmemBPInPage->wOffset + pmemBPInPage->wSize)
         {
             //hit
-            return TRUE;
+            bRet = TRUE;
+            _snprintf(g_szBuf, MAXBUF, "%sPage: %p Offset: %04X Size: %04X\r\n",
+                                        g_szBuf,
+                                        ppageBP->dwPageAddr,
+                                        pmemBPInPage->wOffset,
+                                        pmemBPInPage->wSize
+                                        );   
         }
     }
+
+    if (bRet)
+    {
+        pEvent->m_pUI->ShowInfo(g_szBuf);
+    }
          
-    return FALSE;
+    return bRet;
 }
 
 /************************************************************************/
@@ -98,12 +112,12 @@ CExceptEvent::OnAccessViolation(CBaseEvent *pEvent)
         bRet = CheckHitMemBP(pEvent, dwAddr, ppageBP);
         if (bRet)
         {
-            DoShowRegs(pEvent);
-            _snprintf(g_szBuf, MAXBUF, "Hit MemBP %p %s\r\n",
-                                     dwAddr,
-                                     0 == exceptRecord.ExceptionInformation[0] ? "read" : "write"
-                                     );
+            _snprintf(g_szBuf, MAXBUF, "Hit MemBP %p %s***********\r\n\r\n",
+                                        dwAddr,
+                                        0 == exceptRecord.ExceptionInformation[0] ? "read" : "write"
+                    );
             pEvent->m_pUI->ShowInfo(g_szBuf);
+            DoShowRegs(pEvent);
             pEvent->m_bTalk = TRUE;
         }
 
@@ -118,12 +132,12 @@ CExceptEvent::OnAccessViolation(CBaseEvent *pEvent)
     DWORD dwFirstChance = pEvent->m_debugEvent.u.Exception.dwFirstChance;
     if (dwFirstChance)
     {
-        pEvent->m_pUI->ShowInfo("AccessViolation First Chance*********\r\n");
+        pEvent->m_pUI->ShowInfo("\r\nAccessViolation First Chance*********\r\n");
         DoShowRegs(pEvent);
     }
     else
     {
-        pEvent->m_pUI->ShowInfo("AccessViolation Second Chance*********\r\n");
+        pEvent->m_pUI->ShowInfo("\r\nAccessViolation Second Chance*********\r\n");
         DoShowRegs(pEvent);
     }
 
@@ -150,6 +164,7 @@ CExceptEvent::OnBreakPoint(CBaseEvent *pEvent)
     EXCEPTION_DEBUG_INFO exceptInfo = pEvent->m_debugEvent.u.Exception;
     EXCEPTION_RECORD exceptRecord = exceptInfo.ExceptionRecord;
     DWORD dwAddr = (DWORD)exceptRecord.ExceptionAddress;
+    DWORD dwFirstChance = pEvent->m_debugEvent.u.Exception.dwFirstChance;
 
     //whether been set normalBP
     tagNormalBP *pNormalBP = NULL;
@@ -157,6 +172,25 @@ CExceptEvent::OnBreakPoint(CBaseEvent *pEvent)
     if (bRet)
     {
         assert(pNormalBP != NULL);
+
+        //for NormalBP set on int 3
+        if (pNormalBP->bDisabled)
+        {
+            goto NORMALBP_ON_INT3;
+        }
+
+        //whether NormalBP set on int 3
+        if (gs_BP == pNormalBP->oldvalue)
+        {
+            //disabled for a while
+            pNormalBP->bDisabled = TRUE;
+
+            //and no need to restore the byte, return directly
+            pEvent->m_Context.Eip--;
+            pEvent->m_bTalk = TRUE;
+            DoShowRegs(pEvent);
+            return DBG_CONTINUE;
+        }
     
         //now restore the code
         bRet = WriteProcessMemory(pEvent->m_hProcess,
@@ -189,18 +223,25 @@ CExceptEvent::OnBreakPoint(CBaseEvent *pEvent)
         return DBG_CONTINUE;
     }
 
-    //just for curious
-    DWORD dwFirstChance = pEvent->m_debugEvent.u.Exception.dwFirstChance;
+NORMALBP_ON_INT3:
+    //just for curious, and NormalBP set on int 3
     if (dwFirstChance)
     {
-        pEvent->m_pUI->ShowInfo("BreakPoint First Chance*********\r\n");
-        DoShowRegs(pEvent);
+        pEvent->m_pUI->ShowInfo("\r\nBreakPoint First Chance*********\r\n");
+
+        if (pNormalBP != NULL
+            && pNormalBP->bDisabled)
+        {
+            //re-enable
+            pNormalBP->bDisabled = FALSE;
+        }
     }
     else
     {
-        pEvent->m_pUI->ShowInfo("BreakPoint Second Chance*********\r\n");
-        DoShowRegs(pEvent);
+        pEvent->m_pUI->ShowInfo("\r\nBreakPoint Second Chance*********\r\n");
+        //dwContinueStatus = DBG_CONTINUE;  //can we ?
     }
+    DoShowRegs(pEvent);
     
     return dwContinueStatus;
 }
@@ -234,6 +275,75 @@ CExceptEvent::HasHitHWBP(CBaseEvent *pEvent)
         return FALSE;
     }
     
+    //BO~B3 may be set more than one
+    tagHWBP hwBP;
+    hwBP.pDRAddr[0] = &pEvent->m_Context.Dr0;
+    hwBP.pDRAddr[1] = &pEvent->m_Context.Dr1;
+    hwBP.pDRAddr[2] = &pEvent->m_Context.Dr2;
+    hwBP.pDRAddr[3] = &pEvent->m_Context.Dr3;
+
+    DWORD dwDR7;
+    DWORD dwLENRW;
+    DWORD i;
+    DWORD dwCheck = 1;   //check BX is set
+    while (dwCheck != 16) //1,2,4,8
+    {
+        if (0 == (dwIndex & dwCheck))
+        {
+            dwCheck <<= 1;
+            continue;
+        }        
+        
+        dwDR7 = pEvent->m_Context.Dr7;
+        dwLENRW = dwDR7 >> 16;
+        for (i = 0 ; i < dwCheck - 1; i++)
+        {
+            dwLENRW >>= 4;
+        }
+        
+        hwBP.dwAddr = *(hwBP.pDRAddr[dwCheck - 1]);
+        hwBP.dwType = dwLENRW & 0x3;
+        dwLENRW >>= 2;
+        hwBP.dwLen = (dwLENRW & 0x03) + 1;
+        dwLENRW >>= 2;
+        
+        //take care of execute
+        if (HWBP_EXECUTE == hwBP.dwType)
+        {
+            hwBP.dwLen = 0;
+        }
+        
+        sprintf(g_szBuf, "\r\nHWBP Hit: %p\t%d\t%s *****************\r\n",
+                                    hwBP.dwAddr,
+                                    hwBP.dwLen,
+                                    (HWBP_EXECUTE == hwBP.dwType) ? STREXECUTE : 
+                                    ((HWBP_WRITE == hwBP.dwType) ? STRWRITE: STRACCESS)
+                                    );
+        pEvent->m_pUI->ShowInfo(g_szBuf);
+        
+        //now disable the HWBP for a moment to skip, and re-enable within single step
+        //only need for HWBP_EXECUTE
+        //how about EFLAGS.RF ?
+        //bhc dwIndex
+        if (HWBP_EXECUTE == hwBP.dwType)
+        {
+            strcpy(g_szBuf, "bhc");
+            _itoa(dwCheck - 1, &g_szBuf[4], 10);
+            int argv[] = {0, 4};
+            DoBHC(pEvent, 2, argv, g_szBuf);
+            
+            m_bHWBPTF = TRUE;
+            m_dwAddr  = hwBP.dwAddr;
+            DoStepInto(pEvent);
+        }
+
+        dwCheck <<= 1;
+    }
+
+    DoShowRegs(pEvent);
+
+#if 0
+    //here we only take care of one, not a good idea
     for (int i = 0; dwIndex != 1; i++)
     {
         dwIndex >>= 1;
@@ -243,9 +353,9 @@ CExceptEvent::HasHitHWBP(CBaseEvent *pEvent)
     
     tagHWBP hwBP;
     hwBP.pDRAddr[0] = &pEvent->m_Context.Dr0;
-    hwBP.pDRAddr[1] = &pEvent->m_Context.Dr0;
-    hwBP.pDRAddr[2] = &pEvent->m_Context.Dr0;
-    hwBP.pDRAddr[3] = &pEvent->m_Context.Dr0;
+    hwBP.pDRAddr[1] = &pEvent->m_Context.Dr1;
+    hwBP.pDRAddr[2] = &pEvent->m_Context.Dr2;
+    hwBP.pDRAddr[3] = &pEvent->m_Context.Dr3;
     
     DWORD dwDR7 = pEvent->m_Context.Dr7;
     DWORD dwLENRW = dwDR7 >> 16;
@@ -267,7 +377,7 @@ CExceptEvent::HasHitHWBP(CBaseEvent *pEvent)
     }
 
     DoShowRegs(pEvent);
-    sprintf(g_szBuf, "HWBP Hit: %p\t%d\t%s *****************\r\n",
+    sprintf(g_szBuf, "\r\nHWBP Hit: %p\t%d\t%s *****************\r\n",
                                 hwBP.dwAddr,
                                 hwBP.dwLen,
                                 (HWBP_EXECUTE == hwBP.dwType) ? STREXECUTE : 
@@ -279,14 +389,18 @@ CExceptEvent::HasHitHWBP(CBaseEvent *pEvent)
     //only need for HWBP_EXECUTE
     //what about EFLAGS.RF ?
     //bhc dwIndex
-    strcpy(g_szBuf, "bhc");
-    _itoa(dwIndex, &g_szBuf[4], 10);
-    int argv[] = {0, 4};
-    DoBHC(pEvent, 2, argv, g_szBuf);
-
-    m_bHWBPTF = TRUE;
-    m_dwAddr  = hwBP.dwAddr;
-    DoStepInto(pEvent);
+    if (HWBP_EXECUTE == hwBP.dwType)
+    {
+        strcpy(g_szBuf, "bhc");
+        _itoa(dwIndex, &g_szBuf[4], 10);
+        int argv[] = {0, 4};
+        DoBHC(pEvent, 2, argv, g_szBuf);
+        
+        m_bHWBPTF = TRUE;
+        m_dwAddr  = hwBP.dwAddr;
+        DoStepInto(pEvent);
+    }
+#endif
     
     return TRUE;
 }
@@ -296,6 +410,7 @@ CExceptEvent::OnSingleStep(CBaseEvent *pEvent)
 {
     assert(pEvent != NULL);
     DWORD dwContinueStatus = DBG_EXCEPTION_NOT_HANDLED;
+    DWORD dwFirstChance    = pEvent->m_debugEvent.u.Exception.dwFirstChance;
 
     //////////////////////////////////////////////////////////////////////////
     //re-enable the HWBP, but not guaranteed to the same index
@@ -373,7 +488,9 @@ CExceptEvent::OnSingleStep(CBaseEvent *pEvent)
             CUI::ShowErrorMessage();
         }
 
-        if (pNomalBP->bPerment)
+        if (pNomalBP->bPerment
+            && pNomalBP->oldvalue != gs_BP  //for NormalBP set on int 3
+            )
         {
             pEvent->m_bTalk = TRUE;
             DoShowRegs(pEvent);
@@ -401,6 +518,19 @@ CExceptEvent::OnSingleStep(CBaseEvent *pEvent)
         DoShowRegs(pEvent);
         return DBG_CONTINUE;
     }
+
+    //////////////////////////////////////////////////////////////////////////
+    //secondchance
+    if (dwFirstChance)
+    {
+        pEvent->m_pUI->ShowInfo("\r\nSingleStep First Chance*********\r\n");
+    }
+    else
+    {
+        pEvent->m_pUI->ShowInfo("\r\nSingleStep Second Chance*********\r\n");
+        //dwContinueStatus = DBG_CONTINUE;  //can we ?
+    }
+    DoShowRegs(pEvent);    
 
     return dwContinueStatus;
 }
@@ -599,6 +729,9 @@ CExceptEvent::DoBP(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf
                 assert(FALSE);
             }
         }
+
+        //for setting NormalBP on int 3 , not a good idea
+        pNormalBP->bDisabled = FALSE;
         return TRUE;
     }
 
@@ -658,7 +791,6 @@ CExceptEvent::DoBP(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf
     }
 
     //now save the NormalBP
-
     if (pEvent->m_bTmpBP)
     {
         normalBP.bTmp = TRUE;
@@ -668,6 +800,7 @@ CExceptEvent::DoBP(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf
     {
         normalBP.bPerment = TRUE;
     }
+    normalBP.bDisabled = FALSE;   //for setting NormalBP on int 3
     m_mapAddr_NormBP[dwAddr] = normalBP;
 
     //restore the protect
@@ -779,7 +912,11 @@ CExceptEvent::CheckBMValidity(CBaseEvent *pEvent,
     assert(pEvent != NULL);
 
     //how many pages may be involed
-    DWORD nPages = (dwAddr + dwSize) / m_dwPageSize - dwAddr / m_dwPageSize + 1;
+    DWORD nPages = (dwAddr + dwSize) / m_dwPageSize - dwAddr / m_dwPageSize;
+    if (0 == nPages)
+    {
+        nPages = 1;
+    }
 
     //check these memory state 
     MEMORY_BASIC_INFORMATION memInfo;
@@ -858,6 +995,12 @@ CExceptEvent::CheckBMValidity(CBaseEvent *pEvent,
         {
             memBPInPage.wOffset = 0;
             memBPInPage.wSize   = dwAddr + dwSize - dwPageAddr;
+        }
+
+        //if size is zero, all done
+        if (0 == memBPInPage.wSize)
+        {
+            break;
         }
 
         m_mapPage_PageBP[dwPageAddr].dwPageAddr   = dwPageAddr;
@@ -1005,10 +1148,14 @@ CExceptEvent::DoBMPL(CBaseEvent *pEvent, int argc, int pargv[], const char *pszB
 Function : judge whether has other memBP within the page
 Params   : dwPageAddr indicate the page
            ppPageBP used to receive the PageBP info
+           pnTotal used to receive the count of MemBPInPage
 Return   : TRUE if has other memBPS, Otherwise FALSE                                                                    */
 /************************************************************************/
 BOOL
-CExceptEvent::HasOtherMemBP(CBaseEvent *pEvent, DWORD dwPageAddr, tagPageBP **ppPageBP)
+CExceptEvent::HasOtherMemBP(CBaseEvent *pEvent, 
+                            DWORD dwPageAddr, 
+                            tagPageBP **ppPageBP,
+                            DWORD *pnTotal)
 {
     assert(ppPageBP != NULL);
     *ppPageBP = &m_mapPage_PageBP[dwPageAddr];
@@ -1020,10 +1167,13 @@ CExceptEvent::HasOtherMemBP(CBaseEvent *pEvent, DWORD dwPageAddr, tagPageBP **pp
         it != lstmemBP.end();
         it++, i++)
     {
-        if (i > 0)
-        {
-            return TRUE;
-        }
+        //nothing
+    }
+
+    *pnTotal = i;
+    if (i > 1)
+    {
+        return TRUE;
     }
 
     return FALSE;
@@ -1078,7 +1228,11 @@ CExceptEvent::DoBMC(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBu
     }
 
     //how many pages may be involed
-    DWORD nPages = (dwAddr + dwSize) / m_dwPageSize - dwAddr / m_dwPageSize + 1;
+    DWORD nPages = (dwAddr + dwSize) / m_dwPageSize - dwAddr / m_dwPageSize;
+    if (0 == nPages)
+    {
+        nPages = 1;
+    }
     
     //check these pages state 
     MEMORY_BASIC_INFORMATION memInfo;
@@ -1146,7 +1300,8 @@ CExceptEvent::DoBMC(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBu
         }
 
         //if has no other memBP within the page, now can restore the protect
-        if (!HasOtherMemBP(pEvent, dwPageAddr, &ppageBP))
+        DWORD dwTotal = 0;
+        if (!HasOtherMemBP(pEvent, dwPageAddr, &ppageBP, &dwTotal))
         {
             bRet = VirtualProtectEx(pEvent->m_hProcess,
                                 (LPVOID)dwPageAddr,
@@ -1162,7 +1317,13 @@ CExceptEvent::DoBMC(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBu
         
         //remove from PageBP info
         m_mapPage_PageBP[dwPageAddr].lstMemBP.remove(memBPInPage);
-        
+
+        //if no others, then remove from m_mapPage_PageBP
+        if (1 == dwTotal)
+        {
+            m_mapPage_PageBP.erase(dwPageAddr);
+        }
+                
         dwPageAddr += m_dwPageSize;        
     } 
 
@@ -1253,6 +1414,7 @@ CExceptEvent::SetHWBP(CBaseEvent *pEvent, tagHWBP *pHWBP)
     //no availabe
     if (4 == i)
     {
+        pEvent->m_pUI->ShowInfo("No DRX available\r\n");
         return FALSE;
     }
 
@@ -1455,13 +1617,13 @@ CExceptEvent::DoShowRegs(CBaseEvent *pEvent)
     _snprintf(g_szBuf, MAXBUF, "EAX=%08X ECX=%08X EDX=%08X EBX=%08X\r\n"
                                 "ESP=%08X EBP=%08X ESI=%08X EDI=%08X\r\n"
                                 "EIP=%08X CS=%04X DS=%04X ES=%04X SS=%04X FS=%04X\r\n"
-                                "OF=%1X DF=%1X IF=%1X SF=%1X ZF=%1X AF=%1X PF=%1X CF=%1X\r\n",
+                                "OF=%1X DF=%1X IF=%1X TF=%1X SF=%1X ZF=%1X AF=%1X PF=%1X CF=%1X\r\n",
                                 pEvent->m_Context.Eax, pEvent->m_Context.Ecx, pEvent->m_Context.Edx, pEvent->m_Context.Ebx,
                                 pEvent->m_Context.Esp, pEvent->m_Context.Ebp, pEvent->m_Context.Esi, pEvent->m_Context.Edi,
                                 pEvent->m_Context.Eip, 
                                 pEvent->m_Context.SegCs, pEvent->m_Context.SegDs, pEvent->m_Context.SegEs,
                                 pEvent->m_Context.SegSs, pEvent->m_Context.SegFs,
-                                eflg.OF, eflg.DF, eflg.IF, eflg.SF, 
+                                eflg.OF, eflg.DF, eflg.IF, eflg.TF, eflg.SF, 
                                 eflg.ZF, eflg.AF, eflg.PF, eflg.CF);
     
     pEvent->m_pUI->ShowInfo(g_szBuf);  

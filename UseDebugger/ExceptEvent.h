@@ -67,7 +67,7 @@ typedef struct _tagNormalBP
     byte oldvalue;        //原字节
     byte bTmp:1;          //临时性，Debugger内部设置
     byte bPerment: 1;     //用户通过bp设置
-    //byte bEnabled: 1;     //用户通过bd, be设置，以便disable, enable断点
+    byte bDisabled: 1;     //用于处理对int 3设一般断点
 }tagNormalBP;
 
 //////////////////////////////////////////////////////////////////////////
@@ -165,7 +165,7 @@ protected:
     BOOL IsPageValid(CBaseEvent *pEvent, DWORD dwAddr);
     BOOL HasMemBP(CBaseEvent *pEvent, DWORD dwAddr, tagPageBP **ppPageBP);
     BOOL HasNormalBP(CBaseEvent *pEvent, DWORD dwAddr, tagNormalBP **ppNormalBP);
-    BOOL HasOtherMemBP(CBaseEvent *pEvent, DWORD dwPageAddr, tagPageBP **ppPageBP);
+    BOOL HasOtherMemBP(CBaseEvent *pEvent, DWORD dwPageAddr, tagPageBP **ppPageBP, DWORD *pnTotal);
     BOOL SetHWBP(CBaseEvent *pEvent, tagHWBP *pHWBP);
     BOOL HasHitHWBP(CBaseEvent *pEvent);
     

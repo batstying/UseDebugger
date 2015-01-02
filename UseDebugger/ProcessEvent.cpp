@@ -75,7 +75,7 @@ DWORD CProcessEvent::OnExitThread(const CBaseEvent *pEvent)
 DWORD CProcessEvent::OnExitProcess(const CBaseEvent *pEvent)
 {
     DWORD dwContinueStatus = DBG_EXCEPTION_NOT_HANDLED; 
-    sprintf(g_szBuf, "ExitProcess: ErrorCode %p\r\n", 
+    sprintf(g_szBuf, "\r\nExitProcess: ErrorCode %p\r\n", 
                         pEvent->m_debugEvent.u.ExitProcess.dwExitCode);
     m_pUI->ShowInfo(g_szBuf);
     return dwContinueStatus;

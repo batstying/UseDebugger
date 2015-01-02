@@ -1,0 +1,114 @@
+>> g 
+Dll Loaded: 76300000 C:\WINDOWS\system32\IMM32.DLL
+Dll Loaded: 77DA0000 C:\WINDOWS\system32\ADVAPI32.dll
+Dll Loaded: 77E50000 C:\WINDOWS\system32\RPCRT4.dll
+Dll Loaded: 77FC0000 C:\WINDOWS\system32\Secur32.dll
+Dll Loaded: 62C20000 C:\WINDOWS\system32\LPK.DLL
+Dll Loaded: 73FA0000 C:\WINDOWS\system32\USP10.dll
+EAX=00000000 ECX=0012FFB0 EDX=7C92E4F4 EBX=7FFDB000
+ESP=0012FFC4 EBP=0012FFF0 ESI=00000000 EDI=00000000
+EIP=004011BC CS=001B DS=0023 ES=0023 SS=0023 FS=003B
+OF=0 DF=0 IF=1 TF=0 SF=0 ZF=1 AF=0 PF=1 CF=0
+004011BC:  E8 DAFFFFFF        call 0040119B      [5]
+004011C1:  CC                 int3               [1]
+>> u 0040119B 
+0040119B:  68 00104000        push 00401000      [5]
+004011A0:  64:A1 00000000     mov eax, Dword ptr FS:[00000000]    [6]
+004011A6:  50                 push eax           [1]
+004011A7:  64:892500000000    mov Dword ptr FS:[00000000],esp    [7]
+004011AE:  E8 C6FFFFFF        call 00401179      [5]
+004011B3:  64:8F0500000000    pop Dword ptr FS:[00000000]    [7]
+004011BA:  59                 pop ecx            [1]
+004011BB:  C3                 ret                [1]
+>> u 00401179 
+00401179:  68 56104000        push 00401056      [5]
+0040117E:  64:A1 00000000     mov eax, Dword ptr FS:[00000000]    [6]
+00401184:  50                 push eax           [1]
+00401185:  64:892500000000    mov Dword ptr FS:[00000000],esp    [7]
+0040118C:  E8 C2FFFFFF        call 00401153      [5]
+00401191:  CC                 int3               [1]
+00401192:  64:8F0500000000    pop Dword ptr FS:[00000000]    [7]
+00401199:  59                 pop ecx            [1]
+>> u 00401153 
+00401153:  68 FC104000        push 004010FC      [5]
+00401158:  64:A1 00000000     mov eax, Dword ptr FS:[00000000]    [6]
+0040115E:  50                 push eax           [1]
+0040115F:  64:892500000000    mov Dword ptr FS:[00000000],esp    [7]
+00401166:  E8 E3FFFFFF        call 0040114E      [5]
+0040116B:  33C9               xor ecx, ecx       [2]
+0040116D:  F7F1               div ecx            [2]
+0040116F:  CC                 int3               [1]
+>> bp 0040116F 
+>> bh 0040116F e 0 
+>> g 
+
+AccessViolation First Chance*********
+EAX=0012FFAC ECX=00000000 EDX=7C92E4F4 EBX=7FFDB000
+ESP=0012FF9C EBP=0012FFF0 ESI=00000000 EDI=00000000
+EIP=00401150 CS=001B DS=0023 ES=0023 SS=0023 FS=003B
+OF=0 DF=0 IF=1 TF=0 SF=0 ZF=1 AF=0 PF=1 CF=0
+00401150:  8909               mov Dword ptr DS:[ecx],ecx   [2]
+00401152:  C3                 ret                [1]
+Dll Loaded: 5ADC0000 C:\WINDOWS\system32\uxtheme.dll
+Dll Loaded: 77BE0000 C:\WINDOWS\system32\msvcrt.dll
+Dll Loaded: 10000000 E:\Program\Listary\ListaryHook.dll
+Dll Loaded: 77F40000 C:\WINDOWS\system32\SHLWAPI.dll
+Dll Loaded: 76990000 C:\WINDOWS\system32\ole32.dll
+Dll Loaded: 5D170000 C:\WINDOWS\system32\COMCTL32.dll
+Dll Loaded: 74BE0000 C:\WINDOWS\system32\OLEACC.dll
+Dll Loaded: 75FF0000 C:\WINDOWS\system32\MSVCP60.dll
+Dll Loaded: 770F0000 C:\WINDOWS\system32\OLEAUT32.dll
+Dll Loaded: 74680000 C:\WINDOWS\system32\MSCTF.dll
+Dll Loaded: 77BD0000 C:\WINDOWS\system32\version.dll
+Dll Unloaded: 77BD0000
+Dll Loaded: 73640000 C:\WINDOWS\system32\msctfime.ime
+
+SingleStep First Chance*********
+EAX=F925C9E9 ECX=7FFFFFFF EDX=7938C995 EBX=7FFDB000
+ESP=0012FFA0 EBP=0012FFF0 ESI=00000000 EDI=00000000
+EIP=0040116F CS=001B DS=0023 ES=0023 SS=0023 FS=003B
+OF=0 DF=0 IF=1 TF=0 SF=0 ZF=1 AF=0 PF=1 CF=0
+0040116F:  CC                 int3               [1]
+00401170:  64:8F0500000000    pop Dword ptr FS:[00000000]    [7]
+
+HWBP Hit: 0040116F	0	Execute *****************
+EAX=F925C9E9 ECX=7FFFFFFF EDX=7938C995 EBX=7FFDB000
+ESP=0012FFA0 EBP=0012FFF0 ESI=00000000 EDI=00000000
+EIP=0040116F CS=001B DS=0023 ES=0023 SS=0023 FS=003B
+OF=0 DF=0 IF=1 TF=1 SF=0 ZF=1 AF=0 PF=1 CF=0
+0040116F:  CC                 int3               [1]
+00401170:  64:8F0500000000    pop Dword ptr FS:[00000000]    [7]
+>> g 
+EAX=F925C9E9 ECX=7FFFFFFF EDX=7938C995 EBX=7FFDB000
+ESP=0012FFA0 EBP=0012FFF0 ESI=00000000 EDI=00000000
+EIP=0040116F CS=001B DS=0023 ES=0023 SS=0023 FS=003B
+OF=0 DF=0 IF=1 TF=1 SF=0 ZF=1 AF=0 PF=1 CF=0
+0040116F:  CC                 int3               [1]
+00401170:  64:8F0500000000    pop Dword ptr FS:[00000000]    [7]
+>> g 
+
+BreakPoint First Chance*********
+EAX=F925C9E9 ECX=7FFFFFFF EDX=7938C995 EBX=7FFDB000
+ESP=0012FFA0 EBP=0012FFF0 ESI=00000000 EDI=00000000
+EIP=00401170 CS=001B DS=0023 ES=0023 SS=0023 FS=003B
+OF=0 DF=0 IF=1 TF=1 SF=0 ZF=1 AF=0 PF=1 CF=0
+00401170:  64:8F0500000000    pop Dword ptr FS:[00000000]    [7]
+00401177:  59                 pop ecx            [1]
+
+SingleStep First Chance*********
+EAX=F925C9E9 ECX=7FFFFFFF EDX=7938C995 EBX=7FFDB000
+ESP=0012FFA4 EBP=0012FFF0 ESI=00000000 EDI=00000000
+EIP=00401177 CS=001B DS=0023 ES=0023 SS=0023 FS=003B
+OF=0 DF=0 IF=1 TF=0 SF=0 ZF=1 AF=0 PF=1 CF=0
+00401177:  59                 pop ecx            [1]
+00401178:  C3                 ret                [1]
+
+SingleStep Second Chance*********
+EAX=F925C9E9 ECX=7FFFFFFF EDX=7938C995 EBX=7FFDB000
+ESP=0012FFA4 EBP=0012FFF0 ESI=00000000 EDI=00000000
+EIP=00401177 CS=001B DS=0023 ES=0023 SS=0023 FS=003B
+OF=0 DF=0 IF=1 TF=0 SF=0 ZF=1 AF=0 PF=1 CF=0
+00401177:  59                 pop ecx            [1]
+00401178:  C3                 ret                [1]
+
+ExitProcess: ErrorCode 80000004

@@ -1,0 +1,55 @@
+>> g 
+Dll Loaded: 76300000 C:\WINDOWS\system32\IMM32.DLL
+Dll Loaded: 77DA0000 C:\WINDOWS\system32\ADVAPI32.dll
+Dll Loaded: 77E50000 C:\WINDOWS\system32\RPCRT4.dll
+Dll Loaded: 77FC0000 C:\WINDOWS\system32\Secur32.dll
+Dll Loaded: 62C20000 C:\WINDOWS\system32\LPK.DLL
+Dll Loaded: 73FA0000 C:\WINDOWS\system32\USP10.dll
+EAX=00000000 ECX=0012FFB0 EDX=7C92E4F4 EBX=7FFDE000
+ESP=0012FFC4 EBP=0012FFF0 ESI=00000000 EDI=00000000
+EIP=00401290 CS=001B DS=0023 ES=0023 SS=0023 FS=003B
+OF=0 DF=0 IF=1 TF=0 SF=0 ZF=1 AF=0 PF=1 CF=0
+00401290:  55                 push ebp           [1]
+00401291:  8BEC               mov ebp, esp       [2]
+>> u 
+00401290:  55                 push ebp           [1]
+00401291:  8BEC               mov ebp, esp       [2]
+00401293:  6AFF               push -01           [2]
+00401295:  68 58014200        push 00420158      [5]
+0040129A:  68 943F4000        push 00403F94      [5]
+0040129F:  64:A1 00000000     mov eax, Dword ptr FS:[00000000]    [6]
+004012A5:  50                 push eax           [1]
+004012A6:  64:892500000000    mov Dword ptr FS:[00000000],esp    [7]
+>> bp 0040129A 
+>> bh 0040129F e 0 
+>> bpl 
+----------------普通断点列表----------------
+序号	地址
+0	0040129A
+>> bhl 
+----------------硬件断点列表----------------
+序号	地址		长度	类型
+0	0040129F	0	Execute
+>> ? 
+----------------帮助-----------------
+命令   格式                作用
+bm     bm addr a|w len     内存断点设置
+bml    bml                 内存断点查看
+bmpl   bmpl                分页内内存断点查看
+bmc    bmc id (from bml)   硬件断点删除
+bp     bp addr             一般断点设置
+bpl    bpl                 一般断点查看
+bpc    bpc id (from bpl)   一般断点删除
+bh     bh addr e|w|a 1|2|4 硬件断点设置
+bhl    bhl                 硬件断点查看
+bhc    bhc id (from bhl)   硬件断点删除
+t      t                   步入        
+p      p                   步过
+g      g [addr]            运行
+r      r                   寄存器查看
+u      u [addr]            汇编查看
+d      d [addr]            内存数据查看
+?      ?                   帮助
+help   help                帮助
+log    log                 记录所有
+>> 

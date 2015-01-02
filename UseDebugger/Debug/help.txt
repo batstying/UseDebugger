@@ -1,0 +1,21 @@
+----------------帮助-----------------
+命令   格式                作用
+bm     bm addr a|w len     内存断点设置
+bml    bml                 内存断点查看
+bmpl   bmpl                分页内内存断点查看
+bmc    bmc id (from bml)   硬件断点删除
+bp     bp addr             一般断点设置
+bpl    bpl                 一般断点查看
+bpc    bpc id (from bpl)   一般断点删除
+bh     bh addr e|w|a 1|2|4 硬件断点设置
+bhl    bhl                 硬件断点查看
+bhc    bhc id (from bhl)   硬件断点删除
+t      t                   步入
+p      p                   步过
+g      g [addr]            运行
+r      r                   寄存器查看
+u      u [addr]            汇编查看
+d      d [addr]            内存数据查看
+?      ?                   帮助
+help   help                帮助
+log    log                 记录所有

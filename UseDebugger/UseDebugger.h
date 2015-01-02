@@ -51,7 +51,7 @@ protected:
     virtual BOOL DoShowData(int argc, int pargv[], const char *pszBuf); //-->CBaseEvent
     virtual BOOL DoShowASM(int argc, int pargv[], const char *pszBuf);  //-->CBaseEvent
     virtual BOOL DoShowRegs(int argc, int pargv[], const char *pszBuf); //-->CBaseEvent
-    virtual BOOL DoShowHelp(int argc, int pargv[], const char *pszBuf);
+    virtual BOOL DoShowHelp(int argc = NULL, int pargv[] = NULL, const char *pszBuf = NULL);
     virtual BOOL Quit(int argc, int pargv[], const char *pszBuf);
 
     virtual BOOL DoStepOver(int argc, int pargv[], const char *pszBuf); //-->CExceptEvent
