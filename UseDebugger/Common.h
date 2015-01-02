@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <map>
 #include <list>
+#include <vector>
 #include <algorithm>
 using namespace std;
 
@@ -27,6 +28,20 @@ Decode2AsmOpcode(IN PBYTE pCodeEntry,   // 需要解析指令地址
 
 void
 SafeClose(HANDLE handle);
+
+/************************************************************************/
+/* 
+Function : Try to load the specified file into memory,
+Params   : pszFileName used to indicate the filepath
+           ppFileBuf used to receive the buffer pointer
+                Do not forget to free the buf if no longer used
+
+           pnFileSize used to receive the filesize
+Return   : TRUE if success, FALSE otherwise
+*/
+/************************************************************************/
+BOOL
+LoadFile(char *pszFileName, char **ppFileBuf, long *pnFileSize);
 
 
 #endif

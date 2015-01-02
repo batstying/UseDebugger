@@ -65,14 +65,14 @@ LINK32_OBJS= \
 	"$(INTDIR)\BaseEvent.obj" \
 	"$(INTDIR)\Common.obj" \
 	"$(INTDIR)\DllEvent.obj" \
+	"$(INTDIR)\ExceptEvent.obj" \
 	"$(INTDIR)\main.obj" \
 	"$(INTDIR)\ProcessEvent.obj" \
 	"$(INTDIR)\UI.OBJ" \
 	"$(INTDIR)\UseDebugger.obj" \
 	".\Decode2Asm.obj" \
 	".\Disasm.obj" \
-	".\Dsasm_Functions.obj" \
-	"$(INTDIR)\ExceptEvent.obj"
+	".\Dsasm_Functions.obj"
 
 "$(OUTDIR)\UseDebugger.exe" : "$(OUTDIR)" $(DEF_FILE) $(LINK32_OBJS)
     $(LINK32) @<<
@@ -119,14 +119,14 @@ LINK32_OBJS= \
 	"$(INTDIR)\BaseEvent.obj" \
 	"$(INTDIR)\Common.obj" \
 	"$(INTDIR)\DllEvent.obj" \
+	"$(INTDIR)\ExceptEvent.obj" \
 	"$(INTDIR)\main.obj" \
 	"$(INTDIR)\ProcessEvent.obj" \
 	"$(INTDIR)\UI.OBJ" \
 	"$(INTDIR)\UseDebugger.obj" \
 	".\Decode2Asm.obj" \
 	".\Disasm.obj" \
-	".\Dsasm_Functions.obj" \
-	"$(INTDIR)\ExceptEvent.obj"
+	".\Dsasm_Functions.obj"
 
 "$(OUTDIR)\UseDebugger.exe" : "$(OUTDIR)" $(DEF_FILE) $(LINK32_OBJS)
     $(LINK32) @<<

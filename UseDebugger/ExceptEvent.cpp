@@ -114,6 +114,19 @@ CExceptEvent::OnAccessViolation(CBaseEvent *pEvent)
         return DBG_CONTINUE;
     }
 
+    //just for curious
+    DWORD dwFirstChance = pEvent->m_debugEvent.u.Exception.dwFirstChance;
+    if (dwFirstChance)
+    {
+        pEvent->m_pUI->ShowInfo("AccessViolation First Chance*********\r\n");
+        DoShowRegs(pEvent);
+    }
+    else
+    {
+        pEvent->m_pUI->ShowInfo("AccessViolation Second Chance*********\r\n");
+        DoShowRegs(pEvent);
+    }
+
     return dwContinueStatus;
 }
 
@@ -174,6 +187,19 @@ CExceptEvent::OnBreakPoint(CBaseEvent *pEvent)
         DoShowRegs(pEvent);
 
         return DBG_CONTINUE;
+    }
+
+    //just for curious
+    DWORD dwFirstChance = pEvent->m_debugEvent.u.Exception.dwFirstChance;
+    if (dwFirstChance)
+    {
+        pEvent->m_pUI->ShowInfo("BreakPoint First Chance*********\r\n");
+        DoShowRegs(pEvent);
+    }
+    else
+    {
+        pEvent->m_pUI->ShowInfo("BreakPoint Second Chance*********\r\n");
+        DoShowRegs(pEvent);
     }
     
     return dwContinueStatus;
@@ -250,6 +276,8 @@ CExceptEvent::HasHitHWBP(CBaseEvent *pEvent)
     pEvent->m_pUI->ShowInfo(g_szBuf);
 
     //now disable the HWBP for a moment to skip, and re-enable within single step
+    //only need for HWBP_EXECUTE
+    //what about EFLAGS.RF ?
     //bhc dwIndex
     strcpy(g_szBuf, "bhc");
     _itoa(dwIndex, &g_szBuf[4], 10);

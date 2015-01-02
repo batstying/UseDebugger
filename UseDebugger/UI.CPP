@@ -7,6 +7,9 @@ static HANDLE g_hLog = INVALID_HANDLE_VALUE;
 //////////////////////////////////////////////////////////////////////////
 CUI::CUI()
 {
+    m_pFileBuf = NULL;
+    m_bImport  = FALSE;
+    m_nFileSize = NULL;
 }
 
 BOOL CUI::m_bLog = FALSE;
@@ -14,6 +17,12 @@ BOOL CUI::m_bLog = FALSE;
 CUI::~CUI()
 {
     SafeClose(g_hLog);
+
+    if (m_pFileBuf != NULL)
+    {
+        free(m_pFileBuf);
+        m_pFileBuf = NULL;
+    }
 }
 
 void
@@ -58,11 +67,20 @@ CUI::GetInput(OUT int *pargc,
     int nCount = 0;
     int nIndex = 0;
     char ch;
+    static int nCurPos = 0; //for import script
 
     ShowInfo(">> ");
     while (TRUE)
     {  
-        nRet = scanf("%255s", szBuf);
+        if (m_bImport)
+        {
+            nRet = sscanf(&m_pFileBuf[nCurPos], "%255s", szBuf);
+        }
+        else
+        {
+            nRet = scanf("%255s", szBuf);
+        }
+
         if (EOF == nRet)
         {
             break;
@@ -90,7 +108,30 @@ CUI::GetInput(OUT int *pargc,
             LogInfo(" ");
         }
 
-        ch = getchar();
+        //for import script
+        if (m_bImport)
+        {
+            //
+            printf("%s ", szBuf);
+            nCurPos += (strlen(szBuf) + 1);
+            if ('\n' == m_pFileBuf[nCurPos])
+            {
+                ch = '\n';
+                nCurPos++;
+                printf("\r\n");
+            }
+
+            //stop at es
+            if (0 == strncmp(&m_pFileBuf[nCurPos], "es", 2))
+            {
+                m_bImport = FALSE;
+            }
+        }
+        else
+        {
+            ch = getchar();
+        }
+        
         if('\n' == ch)
         {
             strcat(gs_szCommand, "\n");
@@ -236,7 +277,6 @@ Function : load and execute script saved before                                 
 void CUI::ImportScript()
 {
     BOOL bRet;
-    DWORD dwRead;
     char szFilePath[MAX_PATH];
     bRet = SelectFile(szFilePath, MAX_PATH);
     if (!bRet)
@@ -245,7 +285,13 @@ void CUI::ImportScript()
         return;
     }
 
-    
+    //load file into memory
+    if (!LoadFile(szFilePath, &m_pFileBuf, &m_nFileSize))
+    {
+        return;
+    }    
+
+    m_bImport = TRUE;
 }
 
 /************************************************************************/

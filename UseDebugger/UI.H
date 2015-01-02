@@ -13,6 +13,7 @@ public:
       virtual ~CUI();
 public:
     virtual void ExportScript();
+    virtual void ImportScript();
     virtual void Log();
 
     //display menus
@@ -39,8 +40,12 @@ public:
 
     //
     virtual BOOL SelectFile(char *pszPath, SIZE_T nMaxPath = MAX_PATH);
+
 protected:
-    static BOOL m_bLog;
+    static BOOL m_bLog;     //whether log all the operation
+    char *m_pFileBuf;       //for script file
+    long m_nFileSize;       //for script file
+    BOOL m_bImport;         //whether import script
 private:
 };
 

@@ -46,14 +46,16 @@ DWORD CProcessEvent::OnCreateProcess(CBaseEvent *pEvent)
 
     //set BP at OEP
     pEvent->m_dwOEP = (DWORD)processInfo.lpStartAddress;
-
-    strcpy(g_szBuf, "bp");
-    sprintf(&g_szBuf[3], "%p", processInfo.lpStartAddress);
-    int argv[] = {0, 3};
-
-    ((CUseDebugger *)pEvent)->m_bTmpBP = TRUE;
-    ((CUseDebugger *)pEvent)->DoBP(2, argv, g_szBuf);
-    pEvent->m_bTalk = FALSE;
+    if (pEvent->m_dwOEP)
+    {
+        strcpy(g_szBuf, "bp");
+        sprintf(&g_szBuf[3], "%p", processInfo.lpStartAddress);
+        int argv[] = {0, 3};
+        
+        ((CUseDebugger *)pEvent)->m_bTmpBP = TRUE;
+        ((CUseDebugger *)pEvent)->DoBP(2, argv, g_szBuf);
+        pEvent->m_bTalk = FALSE;
+    }
 
     return dwContinueStatus;
 }
@@ -73,5 +75,8 @@ DWORD CProcessEvent::OnExitThread(const CBaseEvent *pEvent)
 DWORD CProcessEvent::OnExitProcess(const CBaseEvent *pEvent)
 {
     DWORD dwContinueStatus = DBG_EXCEPTION_NOT_HANDLED; 
+    sprintf(g_szBuf, "ExitProcess: ErrorCode %p\r\n", 
+                        pEvent->m_debugEvent.u.ExitProcess.dwExitCode);
+    m_pUI->ShowInfo(g_szBuf);
     return dwContinueStatus;
 }

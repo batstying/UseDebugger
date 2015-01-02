@@ -71,6 +71,7 @@ protected:
 
     //about script export, import, operation log
     virtual BOOL DoExport(int argc, int pargv[], const char *pszBuf); 
+    virtual BOOL DoImport(int argc, int pargv[], const char *pszBuf); 
     virtual BOOL DoLog(int argc, int pargv[], const char *pszBuf);
 
 public:

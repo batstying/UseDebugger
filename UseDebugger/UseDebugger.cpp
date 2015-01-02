@@ -79,6 +79,7 @@ CUseDebugger::DispatchCommand()
     DISPATCHINPUT("help",   CUseDebugger::DoShowHelp);
     //DISPATCHINPUT("q",      CUseDebugger::Quit);
     DISPATCHINPUT("es",     CUseDebugger::DoExport);
+    DISPATCHINPUT("ls",     CUseDebugger::DoImport);
     DISPATCHINPUT("log",    CUseDebugger::DoLog);
 }
 
@@ -149,7 +150,7 @@ CUseDebugger::Run(void)
         }
         else if (ch == '2')
         {
-            //TBD   
+            bRet = this->DebugAttachedProcess();  
         }
         else if (ch == '0')
         {
@@ -201,8 +202,24 @@ CUseDebugger::DebugNewProcess()
 BOOL
 CUseDebugger::DebugAttachedProcess()
 {
-    //TBD
-    return TRUE;
+    m_pUI->ShowInfo("Please Enter the PID:\r\n");
+    system("taskmgr");
+
+    //get pid
+    int argc;
+    int pargv[MAXBYTE];
+    m_pUI->GetInput(&argc, pargv, g_szBuf, MAXBUF);
+
+    DWORD dwPID = strtoul(g_szBuf, NULL, 10);
+    assert(dwPID != 0 && dwPID != ULONG_MAX);
+
+    if (DebugActiveProcess(dwPID))
+    {
+        this->DebugProcess();
+        return TRUE;
+    }
+    
+    return FALSE;
 }
 
 /************************************************************************/
@@ -604,6 +621,17 @@ CUseDebugger::DoExport(int argc, int pargv[], const char *pszBuf)
     m_pUI->ExportScript();
     return TRUE;
 }
+
+/************************************************************************/
+/* 
+Function : load the saved script(command history) and execute           */
+/************************************************************************/
+BOOL 
+CUseDebugger::DoImport(int argc, int pargv[], const char *pszBuf)
+{
+    m_pUI->ImportScript();
+    return TRUE;
+} 
 
 /************************************************************************/
 /* 
