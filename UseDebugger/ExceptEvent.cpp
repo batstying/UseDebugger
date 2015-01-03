@@ -3,6 +3,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "ExceptEvent.h"
+#include "UseDebugger.h"
 
 static const unsigned char gs_BP = 0xCC;
 static char gs_szCodeBuf[64];
@@ -34,11 +35,12 @@ Process:
                                              */
 /************************************************************************/
 BOOL 
-CheckHitMemBP(CBaseEvent *pEvent, DWORD dwAddr, tagPageBP *ppageBP)
+CExceptEvent::CheckHitMemBP(CBaseEvent *pEvent, DWORD dwAddr, tagPageBP *ppageBP)
 {
     assert(ppageBP != NULL);
     DWORD dwOffset = dwAddr - ppageBP->dwPageAddr;
     BOOL bRet = FALSE;
+    BOOL bTraced = FALSE;  //trace only once
 
     g_szBuf[0] = '\0';
 
@@ -52,7 +54,16 @@ CheckHitMemBP(CBaseEvent *pEvent, DWORD dwAddr, tagPageBP *ppageBP)
         if (dwOffset >= pmemBPInPage->wOffset
             && dwOffset < pmemBPInPage->wOffset + pmemBPInPage->wSize)
         {
-            //hit
+            //hit and if for trace, 
+            if (pmemBPInPage->bTrace
+                && !bTraced)
+            {
+                //need to log this instruction
+                bTraced = TRUE;
+                pEvent->m_pUI->TraceLog(this->ShowOneASM(pEvent));  
+                continue;
+            }
+            
             bRet = TRUE;
             _snprintf(g_szBuf, MAXBUF, "%sPage: %p Offset: %04X Size: %04X\r\n",
                                         g_szBuf,
@@ -62,7 +73,7 @@ CheckHitMemBP(CBaseEvent *pEvent, DWORD dwAddr, tagPageBP *ppageBP)
                                         );   
         }
     }
-
+    
     if (bRet)
     {
         pEvent->m_pUI->ShowInfo(g_szBuf);
@@ -274,6 +285,9 @@ CExceptEvent::HasHitHWBP(CBaseEvent *pEvent)
     {
         return FALSE;
     }
+
+    //whether need to interact with user
+    pEvent->m_bTalk = TRUE;
     
     //BO~B3 may be set more than one
     tagHWBP hwBP;
@@ -285,23 +299,25 @@ CExceptEvent::HasHitHWBP(CBaseEvent *pEvent)
     DWORD dwDR7;
     DWORD dwLENRW;
     DWORD i;
+    DWORD dwB03 = 0;        //B0~B3
     DWORD dwCheck = 1;   //check BX is set
     while (dwCheck != 16) //1,2,4,8
     {
         if (0 == (dwIndex & dwCheck))
         {
+            dwB03++;
             dwCheck <<= 1;
             continue;
         }        
         
         dwDR7 = pEvent->m_Context.Dr7;
         dwLENRW = dwDR7 >> 16;
-        for (i = 0 ; i < dwCheck - 1; i++)
+        for (i = 0 ; i < dwB03; i++)
         {
             dwLENRW >>= 4;
         }
         
-        hwBP.dwAddr = *(hwBP.pDRAddr[dwCheck - 1]);
+        hwBP.dwAddr = *(hwBP.pDRAddr[dwB03]);
         hwBP.dwType = dwLENRW & 0x3;
         dwLENRW >>= 2;
         hwBP.dwLen = (dwLENRW & 0x03) + 1;
@@ -327,9 +343,8 @@ CExceptEvent::HasHitHWBP(CBaseEvent *pEvent)
         //bhc dwIndex
         if (HWBP_EXECUTE == hwBP.dwType)
         {
-            strcpy(g_szBuf, "bhc");
-            _itoa(dwCheck - 1, &g_szBuf[4], 10);
             int argv[] = {0, 4};
+            sprintf(g_szBuf, "bhc %d", dwB03);
             DoBHC(pEvent, 2, argv, g_szBuf);
             
             m_bHWBPTF = TRUE;
@@ -337,10 +352,21 @@ CExceptEvent::HasHitHWBP(CBaseEvent *pEvent)
             DoStepInto(pEvent);
         }
 
+        //remember to clear DR6
+        pEvent->m_Context.Dr6 = 0;
+
+        //if changing FS:[0], SEH Chain, then no need to interact with the user
+        if (hwBP.dwAddr > 0x7F000000)
+        {
+            ((CUseDebugger *)pEvent)->DoShowSEH(NULL, NULL, NULL);
+            pEvent->m_bTalk = FALSE;
+        }
+
         dwCheck <<= 1;
     }
 
     DoShowRegs(pEvent);
+    return TRUE;
 
 #if 0
     //here we only take care of one, not a good idea
@@ -391,9 +417,8 @@ CExceptEvent::HasHitHWBP(CBaseEvent *pEvent)
     //bhc dwIndex
     if (HWBP_EXECUTE == hwBP.dwType)
     {
-        strcpy(g_szBuf, "bhc");
-        _itoa(dwIndex, &g_szBuf[4], 10);
         int argv[] = {0, 4};
+        sprintf(g_szBuf, "bhc %d", dwIndex);
         DoBHC(pEvent, 2, argv, g_szBuf);
         
         m_bHWBPTF = TRUE;
@@ -401,8 +426,6 @@ CExceptEvent::HasHitHWBP(CBaseEvent *pEvent)
         DoStepInto(pEvent);
     }
 #endif
-    
-    return TRUE;
 }
 
 DWORD
@@ -412,18 +435,24 @@ CExceptEvent::OnSingleStep(CBaseEvent *pEvent)
     DWORD dwContinueStatus = DBG_EXCEPTION_NOT_HANDLED;
     DWORD dwFirstChance    = pEvent->m_debugEvent.u.Exception.dwFirstChance;
 
+    if (pEvent->m_Context.Eip > 0x70000000)
+    {
+        return DBG_CONTINUE;
+    }
+
     //////////////////////////////////////////////////////////////////////////
     //re-enable the HWBP, but not guaranteed to the same index
     if (m_bHWBPTF)
     {
         m_bHWBPTF = FALSE;
 
+        _snprintf(g_szBuf, MAXBUF, "re-enable HWBP at eip: %p\r\n",
+                                   pEvent->m_Context.Eip);
+        pEvent->m_pUI->ShowInfo(g_szBuf);
+
         //bh 00400000 e 0
-        strcpy(g_szBuf, "bh");
-        sprintf(&g_szBuf[3], "%p", m_dwAddr);
-        strcpy(&g_szBuf[0x0C], "e");
-        strcpy(&g_szBuf[0x0E], "0");
         int argv[] = {0, 3, 0x0C, 0x0e};
+        sprintf(g_szBuf, "bh %p e 0", m_dwAddr);
         DoBH(pEvent, 4, argv, g_szBuf);
         return DBG_CONTINUE;
     }
@@ -432,7 +461,6 @@ CExceptEvent::OnSingleStep(CBaseEvent *pEvent)
     //check hardware
     if (HasHitHWBP(pEvent))
     {
-        pEvent->m_bTalk = TRUE;
         return DBG_CONTINUE;
     }
     
@@ -549,8 +577,7 @@ CExceptEvent::DoStepOver(CBaseEvent *pEvent/*, int argc, int pargv[], const char
     {
         //bp addr 
         int argv[] = {0, 3};
-        strcpy(g_szBuf, "bp");
-        sprintf(&g_szBuf[3], "%p", pEvent->m_Context.Eip + nCodeLen);  
+        sprintf(g_szBuf, "bp %p", pEvent->m_Context.Eip + nCodeLen); 
         
         pEvent->m_bTmpBP = TRUE;
         DoBP(pEvent, 2, argv, g_szBuf);
@@ -767,14 +794,13 @@ CExceptEvent::DoBP(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf
 
     //now save the NormalBP
     tagNormalBP normalBP = {0};
-    bRet = ReadProcessMemory(pEvent->m_hProcess,
-                            (LPVOID)dwAddr,
-                            (LPVOID)&normalBP.oldvalue,
-                            sizeof(normalBP.oldvalue),
-                            NULL);
+    bRet = ReadBuf(pEvent->m_hProcess,
+                   (LPVOID)dwAddr,
+                   (LPVOID)&normalBP.oldvalue,
+                    sizeof(normalBP.oldvalue)
+                    );
     if (!bRet)
     {
-        CUI::ShowErrorMessage();
         return FALSE;
     }
 
@@ -889,9 +915,7 @@ CExceptEvent::DoBPC(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBu
 /* 
 Function : check Memory BreakPoint validity  
 Params   : pEvents  contains hProcess
-           dwAddr  indicate the start point
-           dwType  can be MEMBP_ACCESS, MEMBP_READ 
-           dwSize 
+           pMemBP contains the membp info
 
 Return   : TRUE is valid, and set some info
            Otherwise, FALSE 
@@ -905,14 +929,12 @@ Process :
 /************************************************************************/
 BOOL 
 CExceptEvent::CheckBMValidity(CBaseEvent *pEvent, 
-                              DWORD dwAddr,
-                              DWORD dwType,
-                              DWORD dwSize)
+                              tagMemBP *pMemBP)
 {
     assert(pEvent != NULL);
 
     //how many pages may be involed
-    DWORD nPages = (dwAddr + dwSize) / m_dwPageSize - dwAddr / m_dwPageSize;
+    DWORD nPages = (pMemBP->dwAddr + pMemBP->dwSize) / m_dwPageSize - pMemBP->dwAddr / m_dwPageSize;
     if (0 == nPages)
     {
         nPages = 1;
@@ -920,21 +942,17 @@ CExceptEvent::CheckBMValidity(CBaseEvent *pEvent,
 
     //check these memory state 
     MEMORY_BASIC_INFORMATION memInfo;
-    tagMemBP       memBP;               //独立内存断点
     tagMemBPInPage memBPInPage;         //断点在分页内信息
     map<DWORD, tagPageBP>::iterator it;
     map<DWORD, tagPageBP>::iterator itend = m_mapPage_PageBP.end();
     list<tagMemBP>::iterator itMemBP;
-    DWORD  dwPageAddr = (dwAddr / m_dwPageSize) * m_dwPageSize;
+    DWORD  dwPageAddr = (pMemBP->dwAddr / m_dwPageSize) * m_dwPageSize;
     DWORD dwOldProtect;
     DWORD dwRealSize = 0;
     BOOL bRet;
 
     //if already exist
-    memBP.dwAddr = dwAddr;
-    memBP.dwSize = dwSize;
-    memBP.dwType = dwType;
-    itMemBP = find(m_lstMemBP.begin(), m_lstMemBP.end(), memBP);
+    itMemBP = find(m_lstMemBP.begin(), m_lstMemBP.end(), *pMemBP);
     if (itMemBP != m_lstMemBP.end())
     {
         return FALSE;
@@ -968,10 +986,10 @@ CExceptEvent::CheckBMValidity(CBaseEvent *pEvent,
         }
 
         //if no need to set
-        if ((MEMBP_WRITE == dwType)
-            && (PAGE_READONLY == dwType
-                || PAGE_EXECUTE == dwType
-                || PAGE_EXECUTE_READ == dwType)
+        if ((MEMBP_WRITE == pMemBP->dwType)
+            && (PAGE_READONLY == pMemBP->dwType
+                || PAGE_EXECUTE == pMemBP->dwType
+                || PAGE_EXECUTE_READ == pMemBP->dwType)
                 //others?
                 )
         {
@@ -988,14 +1006,15 @@ CExceptEvent::CheckBMValidity(CBaseEvent *pEvent,
         }
         else if (0 == i)
         {
-            memBPInPage.wOffset = dwAddr - dwPageAddr;
-            memBPInPage.wSize   = min(dwSize, m_dwPageSize - memBPInPage.wOffset);
+            memBPInPage.wOffset = pMemBP->dwAddr - dwPageAddr;
+            memBPInPage.wSize   = min(pMemBP->dwSize, m_dwPageSize - memBPInPage.wOffset);
         }
         else    //i = nPages - 1
         {
             memBPInPage.wOffset = 0;
-            memBPInPage.wSize   = dwAddr + dwSize - dwPageAddr;
+            memBPInPage.wSize   = pMemBP->dwAddr + pMemBP->dwSize - dwPageAddr;
         }
+        memBPInPage.bTrace = pMemBP->bTrace;
 
         //if size is zero, all done
         if (0 == memBPInPage.wSize)
@@ -1027,10 +1046,7 @@ CExceptEvent::CheckBMValidity(CBaseEvent *pEvent,
     //valid, just take it
     if (i != 0)
     {
-        memBP.dwAddr = dwAddr;
-        memBP.dwSize = dwSize;
-        memBP.dwType = dwType;
-        m_lstMemBP.push_back(memBP);
+        m_lstMemBP.push_back(*pMemBP);
     }
 
     return TRUE;
@@ -1041,6 +1057,7 @@ CExceptEvent::CheckBMValidity(CBaseEvent *pEvent,
 Function : set memory breakpoint   
 Params   :  bm addr a|w len 
             addr为断点起始值，a|w分别表示访问类型和写入类型，len表示断点的长度
+            bTrace used to indicate whether this used for trace instruction.
 Process: 
 1)断点合法性检查（分页是否有效，断点属性与分页属性，重复性设置），
 2)新属性的设置，
@@ -1053,7 +1070,12 @@ Process:
                                                                  */
 /************************************************************************/
 BOOL
-CExceptEvent::DoBM(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf)
+CExceptEvent::DoBM(CBaseEvent *pEvent, 
+                   int argc, 
+                   int pargv[], 
+                   const char *pszBuf,
+                   BOOL bTrace
+                   )
 { 
     //bm addr a|w len
     assert(4 == argc);
@@ -1067,10 +1089,14 @@ CExceptEvent::DoBM(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf
     assert((dwSize != 0) && (dwSize != ULONG_MAX));
     assert(('a' == bpType) || ('w' == bpType));
 
-    //check address validity
-    CheckBMValidity(pEvent, dwAddr, 
-                    (bpType == 'a') ? MEMBP_ACCESS : MEMBP_WRITE,
-                    dwSize
+    //check address validity, 
+    tagMemBP       memBP;               //独立内存断点
+    memBP.dwAddr = dwAddr;
+    memBP.dwSize = dwSize;
+    memBP.dwType = ((bpType == 'a') ? MEMBP_ACCESS : MEMBP_WRITE);
+    memBP.bTrace = bTrace;
+    CheckBMValidity(pEvent, 
+                    &memBP
                     );
 
     return TRUE;
@@ -1570,7 +1596,7 @@ CExceptEvent::DoBHC(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBu
     assert(isdigit(pszBuf[pargv[1]]));
 
     DWORD dwIndex = strtoul(&pszBuf[pargv[1]], NULL, 10);
-    assert(dwIndex <= 4);
+    assert(dwIndex < 4);
 
     DWORD dwSet = 0x3;
     for (DWORD i = 0; i < dwIndex; i++)
@@ -1586,43 +1612,30 @@ CExceptEvent::DoBHC(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBu
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 //Registers related
-//see IA1.pdf 3.4.3 EFLAG registers
-typedef struct _tagEFlags
-{
-    unsigned char CF:1;
-    unsigned char Reserv1:1; //1
-    unsigned char PF:1;
-    unsigned char Reserv2:1; //0
-    unsigned char AF:1; 
-    unsigned char Reserv3:1; //0
-    unsigned char ZF:1;
-    unsigned char SF:1;
-    unsigned char TF:1;
-    unsigned char IF:1;
-    unsigned char DF:1;
-    unsigned char OF:1;
-    //others
-    unsigned char IOPL:2;
-    unsigned char NT:1;
-    unsigned char Reserv4:1; //0
-    unsigned char Remain;
-}tagEFlags;
-
 void 
 CExceptEvent::DoShowRegs(CBaseEvent *pEvent)
 {
     assert(pEvent != NULL);
 
+    //to avoid frequently asking TIB
+    static DWORD dwFS = pEvent->m_Context.SegFs;
+    static DWORD dwTIB = 0;
+    if (dwFS != pEvent->m_dwFS)
+    {
+        dwFS = pEvent->m_dwFS;
+        dwTIB = GetTIB(pEvent);
+    }
+
     tagEFlags eflg = *(tagEFlags *)&pEvent->m_Context.EFlags;
     _snprintf(g_szBuf, MAXBUF, "EAX=%08X ECX=%08X EDX=%08X EBX=%08X\r\n"
                                 "ESP=%08X EBP=%08X ESI=%08X EDI=%08X\r\n"
-                                "EIP=%08X CS=%04X DS=%04X ES=%04X SS=%04X FS=%04X\r\n"
+                                "EIP=%08X CS=%04X DS=%04X ES=%04X SS=%04X FS=%04X [%p]\r\n"
                                 "OF=%1X DF=%1X IF=%1X TF=%1X SF=%1X ZF=%1X AF=%1X PF=%1X CF=%1X\r\n",
                                 pEvent->m_Context.Eax, pEvent->m_Context.Ecx, pEvent->m_Context.Edx, pEvent->m_Context.Ebx,
                                 pEvent->m_Context.Esp, pEvent->m_Context.Ebp, pEvent->m_Context.Esi, pEvent->m_Context.Edi,
                                 pEvent->m_Context.Eip, 
                                 pEvent->m_Context.SegCs, pEvent->m_Context.SegDs, pEvent->m_Context.SegEs,
-                                pEvent->m_Context.SegSs, pEvent->m_Context.SegFs,
+                                pEvent->m_Context.SegSs, pEvent->m_Context.SegFs, dwTIB,
                                 eflg.OF, eflg.DF, eflg.IF, eflg.TF, eflg.SF, 
                                 eflg.ZF, eflg.AF, eflg.PF, eflg.CF);
     
@@ -1645,7 +1658,7 @@ Process : take care of modification of BreakPoint, like 0x0CC
           remember to restore b4 show to user
           */
 /************************************************************************/
-void 
+const char * 
 CExceptEvent::ShowOneASM(CBaseEvent *pEvent,
                        DWORD dwAddr/*=NULL*/, 
                        UINT *pnCodeSize/*=NULL*/)
@@ -1654,18 +1667,17 @@ CExceptEvent::ShowOneASM(CBaseEvent *pEvent,
     UINT nCodeSize;
     BOOL bRet;
 
-    DWORD dwCodeAddr = m_Context.Eip;
+    DWORD dwCodeAddr = pEvent->m_Context.Eip;
     if (dwAddr != NULL)
     {
         dwCodeAddr = dwAddr;
     }
     
-    bRet = ReadProcessMemory(
-                        pEvent->m_hProcess, 
-                        (LPVOID)dwCodeAddr,
-                        gs_szCodeBuf,
-                        sizeof(gs_szCodeBuf),
-                        NULL);    
+    bRet = ReadBuf(pEvent->m_hProcess, 
+                   (LPVOID)dwCodeAddr,
+                   gs_szCodeBuf,
+                   sizeof(gs_szCodeBuf)
+                   );    
     if (!bRet)
     {
         CUI::ShowErrorMessage();
@@ -1699,6 +1711,8 @@ CExceptEvent::ShowOneASM(CBaseEvent *pEvent,
                                 gs_szASM, 
                                 nCodeSize);
     pEvent->m_pUI->ShowInfo(g_szBuf);
+
+    return g_szBuf;
 }
 
 /************************************************************************/
@@ -1795,7 +1809,7 @@ CExceptEvent::DoShowData(CBaseEvent *pEvent, int argc, int pargv[], const char *
                                   &nRead);
     if (!bRet)
     {
-        pEvent->m_pUI->ShowErrorMessage();
+        CUI::ShowErrorMessage();
     }
 
     //update record
@@ -1844,5 +1858,174 @@ CExceptEvent::DoShowData(CBaseEvent *pEvent, int argc, int pargv[], const char *
 
     _snprintf(g_szBuf, MAXBUF, "%s\r\n", g_szBuf);
     pEvent->m_pUI->ShowInfo(g_szBuf);    
+    return TRUE;
+}
+
+/************************************************************************/
+/* 
+Function : enable the trace function, trace the instruction within a range */
+/************************************************************************/
+BOOL 
+CExceptEvent::DoTrace(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf)
+{
+    //trace addrstart  addrend [dll]
+    assert(argc >= 3);
+    assert(pEvent != NULL);
+    assert(pszBuf != NULL);
+
+    DWORD dwAddrStart = strtoul(&pszBuf[pargv[1]], NULL, 16);
+    DWORD dwAddrEnd   = strtoul(&pszBuf[pargv[2]], NULL, 16);
+
+    //actually no need to check this, we can use VirtualQuery by MemBP
+    if (dwAddrStart < 0x10000
+        || dwAddrStart >= 0x80000000
+        || dwAddrEnd < 0x10000
+        || dwAddrEnd >= 0x80000000
+        || dwAddrStart > dwAddrEnd)
+    {
+        pEvent->m_pUI->ShowInfo("Invalid Trace Range\r\n");
+        return FALSE;
+    }
+
+    //set MemBP,  bm 00400000 a len
+    int argv[] = {0, 3, 0x0C, 0x0E};
+    sprintf(g_szBuf, "bm %p a %d", dwAddrStart, dwAddrEnd - dwAddrStart);
+    DoBM(pEvent, 4, argv, g_szBuf, TRUE);
+
+    return TRUE;
+}
+
+/************************************************************************/
+/* 
+Function : get TIB by FS                                                                     */
+/************************************************************************/
+DWORD 
+CExceptEvent::GetTIB(CBaseEvent *pEvent)
+{
+    assert(pEvent != NULL);
+
+    LDT_ENTRY ldtSelectorEntry;
+    BOOL bRet = GetThreadSelectorEntry(
+                        pEvent->m_hThread,
+                        pEvent->m_Context.SegFs,
+                        &ldtSelectorEntry);
+    if (!bRet)
+    {
+        CUI::ShowErrorMessage();
+        return 0;
+    }
+
+    //BaseHi(BYTE)  BaseMid(BYTE)  BaseLow(WORD)
+    //32  24  16  8  0
+    DWORD dwRet = 0;
+    dwRet = ldtSelectorEntry.BaseLow;
+    dwRet += (ldtSelectorEntry.HighWord.Bytes.BaseMid << 16);
+    dwRet += (ldtSelectorEntry.HighWord.Bytes.BaseHi << 24);
+    return dwRet;
+}
+
+/************************************************************************/
+/* 
+Function : show the SEH Chain                                                                     */
+/************************************************************************/
+BOOL 
+CExceptEvent::DoShowSEH(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf)
+{
+    assert(pEvent != NULL);
+
+    DWORD dwTIB = GetTIB(pEvent);
+    if (0 == dwTIB)
+    {
+        return FALSE;
+    }
+
+    sprintf(g_szBuf, "SEH Chain Updated******\r\n");
+    BOOL bRet;
+    tagSEH seh;
+
+    bRet = ReadBuf(pEvent->m_hProcess,
+                  (LPVOID)dwTIB,
+                  &seh,
+                  sizeof(tagSEH)
+                  );
+    if (!bRet)
+    {
+        return FALSE;
+    }
+
+    //FS:[0]---> Pointer to Next SEH Record, 
+    //           SEH Handler
+    BOOL bTopmost = TRUE;
+    tagSEH *pSEH = (tagSEH *)(seh.ptrNext);
+    do 
+    {
+        bRet = ReadBuf(pEvent->m_hProcess,
+                       (LPVOID)pSEH,
+                       &seh,
+                       sizeof(tagSEH)
+                       );
+        if (!bRet)
+        {
+            break;
+        }
+
+        //set normal bp and MEMBP at the topmost seh handler
+        //but not a good idea to check within a loop, low efficiency
+        if (bTopmost)
+        {
+            bTopmost = FALSE;
+
+            //bp addr
+            int argv[] = {0, 3};
+            sprintf(g_szBuf, "bp %p", seh.dwHandler);
+            pEvent->m_bTmpBP = TRUE;
+            DoBP(pEvent, 2, argv, g_szBuf);
+
+            //bm addr a len  (how long is okay??)
+            int argv1[] = {0, 3, 0x0C, 0x0E};       //this can be a const, used many times
+            sprintf(g_szBuf, "bm %p a 4", seh.dwHandler);
+            DoBM(pEvent, 4, argv1, g_szBuf, TRUE);
+        }
+
+
+        _snprintf(g_szBuf, MAXBUF, "%sAddress: %p   SEH Handler: %p\r\n",
+                                  g_szBuf,
+                                  pSEH,
+                                  seh.dwHandler
+                                  );
+        pSEH = (tagSEH *)seh.ptrNext;
+    } while ((DWORD)pSEH != 0xFFFFFFFF);
+
+    _snprintf(g_szBuf, MAXBUF, "%s\r\n", g_szBuf);
+    pEvent->m_pUI->ShowInfo(g_szBuf);
+  
+    return TRUE;
+}
+
+/************************************************************************/
+/* 
+Function : set memory breakpoint on the thread's FS:[0]
+           to monitor change of SEH Chain.
+           Be helpful for trace   
+
+Remarks  : we use HardWare BreakPoint to monitor,
+           so less DRX                                                                  */
+/************************************************************************/
+BOOL 
+CExceptEvent::MonitorSEH(CBaseEvent *pEvent)
+{
+    assert(pEvent != NULL);
+
+    DWORD dwTIB = GetTIB(pEvent);
+    if (0 == dwTIB)
+    {
+        return FALSE;
+    }
+
+    //bh addr w 4
+    int argv[] = {0, 3, 0x0C, 0x0E};
+    sprintf(g_szBuf, "bh %p w 4", dwTIB);
+    DoBH(pEvent, 4, argv, g_szBuf);
+
     return TRUE;
 }

@@ -57,6 +57,9 @@ DWORD CProcessEvent::OnCreateProcess(CBaseEvent *pEvent)
         pEvent->m_bTalk = FALSE;
     }
 
+    //now monitor the main thread's SEH
+    ((CUseDebugger *)pEvent)->MonitorSEH(pEvent);
+
     return dwContinueStatus;
 }
 
@@ -75,7 +78,7 @@ DWORD CProcessEvent::OnExitThread(const CBaseEvent *pEvent)
 DWORD CProcessEvent::OnExitProcess(const CBaseEvent *pEvent)
 {
     DWORD dwContinueStatus = DBG_EXCEPTION_NOT_HANDLED; 
-    sprintf(g_szBuf, "\r\nExitProcess: ErrorCode %p\r\n", 
+    sprintf(g_szBuf, "\r\nExitProcess: ExitCode %p\r\n", 
                         pEvent->m_debugEvent.u.ExitProcess.dwExitCode);
     m_pUI->ShowInfo(g_szBuf);
     return dwContinueStatus;

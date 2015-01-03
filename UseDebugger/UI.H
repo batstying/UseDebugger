@@ -15,11 +15,13 @@ public:
     virtual void ExportScript();
     virtual void ImportScript();
     virtual void Log();
+    virtual void Trace();
+    virtual void TraceLog(const char *pszInfo);
 
     //display menus
     virtual void ShowMainMenu(void);
     static void ShowInfo(const char *pszInfo);
-    static void LogInfo(const char *pszInfo);
+    static void LogInfo(const char *pszInfo, HANDLE hFile);
     static void ShowErrorMessage();
 
     //get input from user

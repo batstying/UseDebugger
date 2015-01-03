@@ -40,10 +40,13 @@ Group=添加的文件,源文件,资源文件,其他,模块
 1=2
 2=2
 [Find]
-1="EXCEPTION_RECORD"
-2="EXCEPTION_RECORD "
-3="OVER"
-4="esi"
+1="100"
+2="g_szBPoint"
+3="断点来"
+4="EXCEPTION_RECORD"
+5="EXCEPTION_RECORD "
+6="OVER"
+7="esi"
 [VersionControl]
 Settings=1246
 重要事件=129
@@ -54,7 +57,7 @@ MilestoneOnTime=2
 MilestoneOnDate=0
 MilestoneOnDateWhen=1
 MilestoneOnDateStatus=0
-MilestoneOnDateDate=2
+MilestoneOnDateDate=4
 MilestoneOnDateTimeYear=2014
 MilestoneOnDateTimeMonth=11
 MilestoneOnDateTimeDate=25
@@ -89,7 +92,7 @@ ProductVer4Range=0
 [Collapse]
 1=
 [Size]
-1=0,0,0,0,4267
+1=0,0,0,0,5197
 [BookMark]
 0=
 1=

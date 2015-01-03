@@ -3,7 +3,8 @@
 //used for recording command history
 static char gs_szCommand[MAXBUF];   
 
-static HANDLE g_hLog = INVALID_HANDLE_VALUE;
+static HANDLE g_hLog = INVALID_HANDLE_VALUE;      //log for all operation
+static HANDLE g_hTraceLog = INVALID_HANDLE_VALUE; //log for trace
 //////////////////////////////////////////////////////////////////////////
 CUI::CUI()
 {
@@ -105,8 +106,8 @@ CUI::GetInput(OUT int *pargc,
         //
         if (m_bLog)
         {
-            LogInfo(szBuf);
-            LogInfo(" ");
+            LogInfo(szBuf, g_hLog);
+            LogInfo(" ", g_hLog);
         }
 
         //for import script
@@ -139,7 +140,7 @@ CUI::GetInput(OUT int *pargc,
 
             if (m_bLog)
             {
-                LogInfo("\r\n");
+                LogInfo("\r\n", g_hLog);
             }
 
             break;
@@ -181,9 +182,13 @@ BOOL CUI::SelectFile(char *pszFilePath, SIZE_T nMaxPath)
 
 static DWORD gs_dwReadWrite;
 static BOOL gs_bRet;
-void CUI::LogInfo(const char *pszInfo)
+/************************************************************************/
+/* 
+Function : log pszInfo into hFile                                                                     */
+/************************************************************************/
+void CUI::LogInfo(const char *pszInfo, HANDLE hFile)
 {
-    gs_bRet = WriteFile(g_hLog,
+    gs_bRet = WriteFile(hFile,
                         pszInfo,
                         strlen(pszInfo),
                         &gs_dwReadWrite,
@@ -200,7 +205,7 @@ void CUI::ShowInfo(const char *pszInfo)
     
     if (m_bLog)
     {
-        LogInfo(pszInfo);
+        LogInfo(pszInfo, g_hLog);
     }    
 }
 
@@ -330,4 +335,47 @@ void CUI::Log()
     }
 
     m_bLog = TRUE;
+}
+
+/************************************************************************/
+/* 
+Function : prepare file for trace log                                    */
+/************************************************************************/
+void
+CUI::Trace()
+{
+    printf("Please Select the File You want to Save the trace log:\r\n");
+    
+    char szFilePath[MAX_PATH];
+    BOOL bRet = SelectFile(szFilePath, MAX_PATH);
+    if (!bRet)
+    {
+        ShowErrorMessage();
+        return;
+    }
+    
+    g_hTraceLog = CreateFile(szFilePath,
+                        FILE_APPEND_DATA,
+                        FILE_SHARE_READ,
+                        NULL,
+                        OPEN_ALWAYS,
+                        FILE_ATTRIBUTE_NORMAL,
+                        NULL
+                        );
+    
+    if (INVALID_HANDLE_VALUE == g_hTraceLog)
+    {
+        ShowErrorMessage();
+        return;
+    }
+}
+
+/************************************************************************/
+/* 
+Function : write trace log into file                                                                     */
+/************************************************************************/
+void
+CUI::TraceLog(const char *pszInfo)
+{
+    LogInfo(pszInfo, g_hTraceLog);
 }

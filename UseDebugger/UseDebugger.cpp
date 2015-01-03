@@ -81,6 +81,8 @@ CUseDebugger::DispatchCommand()
     DISPATCHINPUT("es",     CUseDebugger::DoExport);
     DISPATCHINPUT("ls",     CUseDebugger::DoImport);
     DISPATCHINPUT("log",    CUseDebugger::DoLog);
+    DISPATCHINPUT("trace",  CUseDebugger::DoTrace);
+    DISPATCHINPUT("vseh",   CUseDebugger::DoShowSEH);
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -283,7 +285,7 @@ CUseDebugger::DebugProcess()
         }
             
         m_hThread = pfnOpenThread(
-                    THREAD_GET_CONTEXT | THREAD_SET_CONTEXT, 
+                    THREAD_GET_CONTEXT | THREAD_SET_CONTEXT | THREAD_QUERY_INFORMATION , 
                     FALSE,
                     m_debugEvent.dwThreadId
                     );
@@ -562,7 +564,7 @@ BOOL
 CUseDebugger::DoBM(int argc, int pargv[], const char *pszBuf)
 { 
     m_bTalk = TRUE;
-    return m_pExceptEvent->DoBM(this, argc, pargv, pszBuf);
+    return m_pExceptEvent->DoBM(this, argc, pargv, pszBuf, FALSE);
 }
 
 BOOL
@@ -650,6 +652,26 @@ CUseDebugger::DoLog(int argc, int pargv[], const char *pszBuf)
     return TRUE;
 }
 
+BOOL 
+CUseDebugger::DoTrace(int argc, int pargv[], const char *pszBuf)
+{
+    m_bTalk = TRUE;
+    m_pUI->Trace();
+    return m_pExceptEvent->DoTrace(this, argc, pargv, pszBuf);
+}
+
+BOOL 
+CUseDebugger::DoShowSEH(int argc, int pargv[], const char *pszBuf)
+{
+    m_bTalk = TRUE;
+    return m_pExceptEvent->DoShowSEH(this, argc, pargv, pszBuf);
+}
+
+BOOL 
+CUseDebugger::MonitorSEH(CBaseEvent *pEvent)
+{
+    return m_pExceptEvent->MonitorSEH(pEvent);
+}
 
 
 

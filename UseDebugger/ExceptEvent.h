@@ -24,6 +24,7 @@ typedef struct _tagMemBP
 {
     DWORD dwAddr;
     DWORD dwSize;
+    BOOL  bTrace;        //used for trace
 #define MEMBP_ACCESS 0   //R, W
 #define MEMBP_WRITE  1
     DWORD dwType;        //write or  access ;
@@ -32,6 +33,7 @@ typedef struct _tagMemBP
         return ((dwAddr == obj.dwAddr)
             && (dwSize == obj.dwSize)
             && (dwType == obj.dwType)
+            && (bTrace == obj.bTrace)
             );
     }
 }tagMemBP;
@@ -42,6 +44,7 @@ typedef struct _tagMemBPInPage
 {
     WORD wOffset;       //在页内的偏移
     WORD wSize;         //在页内的大小
+    BOOL bTrace;        //used for trace
     bool operator == (const _tagMemBPInPage &obj)
     {
         return ((wOffset == obj.wOffset)
@@ -74,37 +77,37 @@ typedef struct _tagNormalBP
 //Structures about HardWare
 typedef struct _tagDR7
 {
-    unsigned char GL0: 2;
-    unsigned char GL1: 2;
-    unsigned char GL2: 2;
-    unsigned char GL3: 2;
-    unsigned char GLE: 2;     // 11
-    unsigned char Reserv0: 3; // 001
-    unsigned char GD : 1;     // 0
-    unsigned char Reserv1: 2; //00
-    unsigned char RW0: 2;
-    unsigned char LEN0: 2;
-    unsigned char RW1: 2;
-    unsigned char LEN1: 2;
-    unsigned char RW2: 2;
-    unsigned char LEN2: 2;
-    unsigned char RW3: 2;
-    unsigned char LEN3: 2;
+    unsigned /*char*/ GL0: 2;
+    unsigned /*char*/ GL1: 2;
+    unsigned /*char*/ GL2: 2;
+    unsigned /*char*/ GL3: 2;
+    unsigned /*char*/ GLE: 2;     // 11
+    unsigned /*char*/ Reserv0: 3; // 001
+    unsigned /*char*/ GD : 1;     // 0
+    unsigned /*char*/ Reserv1: 2; //00
+    unsigned /*char*/ RW0: 2;
+    unsigned /*char*/ LEN0: 2;
+    unsigned /*char*/ RW1: 2;
+    unsigned /*char*/ LEN1: 2;
+    unsigned /*char*/ RW2: 2;
+    unsigned /*char*/ LEN2: 2;
+    unsigned /*char*/ RW3: 2;
+    unsigned /*char*/ LEN3: 2;
 #define DR7INIT 0x00000700  //Reserv1:00 GD:0 Reserv0:001  GELE:11
 }tagDR7;
 
 typedef struct _tagDR6
 {
-    unsigned char B0:1;
-    unsigned char B1:1;
-    unsigned char B2:1;
-    unsigned char B3:1;
-    unsigned char Reserv0;      //11111111
-    unsigned char Reserv1:1;    //0
-    unsigned char BD:1;
-    unsigned char BS:1;
-    unsigned char BT:1;
-    WORD  Reserv2;              //set to 1
+    unsigned /*char*/ B0:1;
+    unsigned /*char*/ B1:1;
+    unsigned /*char*/ B2:1;
+    unsigned /*char*/ B3:1;
+    unsigned /*char*/ Reserv0:8;      //11111111
+    unsigned /*char*/ Reserv1:1;    //0
+    unsigned /*char*/ BD:1;
+    unsigned /*char*/ BS:1;
+    unsigned /*char*/ BT:1;
+    unsigned /*char*/ Reserv2:16;              //set to 1
 }tagDR6;
 
 typedef struct _tagHWBP
@@ -121,6 +124,37 @@ typedef struct _tagHWBP
 #define STRWRITE    "Write"
 #define STRACCESS   "Access"
 }tagHWBP;
+
+//////////////////////////////////////////////////////////////////////////
+//see IA1.pdf 3.4.3 EFLAG registers
+typedef struct _tagEFlags
+{
+    unsigned /*char*/ CF:1;
+    unsigned /*char*/ Reserv1:1; //1
+    unsigned /*char*/ PF:1;
+    unsigned /*char*/ Reserv2:1; //0
+    unsigned /*char*/ AF:1; 
+    unsigned /*char*/ Reserv3:1; //0
+    unsigned /*char*/ ZF:1;
+    unsigned /*char*/ SF:1;
+    unsigned /*char*/ TF:1;
+    unsigned /*char*/ IF:1;
+    unsigned /*char*/ DF:1;
+    unsigned /*char*/ OF:1;
+    //others
+    unsigned /*char*/ IOPL:2;
+    unsigned /*char*/ NT:1;
+    unsigned /*char*/ Reserv4:1; //0
+    unsigned /*char*/ Remain:16;
+}tagEFlags;
+
+//////////////////////////////////////////////////////////////////////////
+//about seh
+typedef struct _tagSEH
+{
+    DWORD ptrNext;      //pointer to next seh record
+    DWORD dwHandler;    //SEH handler
+}tagSEH;
 
 //////////////////////////////////////////////////////////////////////////
 class CExceptEvent : public CBaseEvent  
@@ -143,7 +177,7 @@ public:
     virtual BOOL DoBPL(CBaseEvent *pEvent/*, int argc, int pargv[], const char *pszBuf*/);
     virtual BOOL DoBPC(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf);       
     
-    virtual BOOL DoBM(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf);       
+    virtual BOOL DoBM(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf, BOOL bTrace);       
     virtual BOOL DoBML(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf); 
     virtual BOOL DoBMPL(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf); 
     virtual BOOL DoBMC(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf);
@@ -155,13 +189,22 @@ public:
     //show
     virtual BOOL DoShowData(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf); 
     virtual BOOL DoShowASM(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf);
-    virtual void ShowOneASM(CBaseEvent *pEvent, DWORD dwAddr = NULL, UINT *pnCodeSize = NULL);
+    virtual const char * ShowOneASM(CBaseEvent *pEvent, DWORD dwAddr = NULL, UINT *pnCodeSize = NULL);
     virtual void ShowTwoASM(CBaseEvent *pEvent, DWORD dwAddr = NULL); 
     virtual void DoShowRegs(CBaseEvent *pEvent); 
 
+    //extended function
+    virtual BOOL DoTrace(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf);
+    virtual BOOL DoShowSEH(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf);
+    virtual BOOL MonitorSEH(CBaseEvent *pEvent);
+
+    //
+    DWORD GetTIB(CBaseEvent *pEvent);
+
 protected:
     //
-    BOOL CheckBMValidity(CBaseEvent *pEvent, DWORD dwAddr, DWORD dwType, DWORD dwSize);
+    BOOL CheckHitMemBP(CBaseEvent *pEvent, DWORD dwAddr, tagPageBP *ppageBP);
+    BOOL CheckBMValidity(CBaseEvent *pEvent, tagMemBP *pMemBP);
     BOOL IsPageValid(CBaseEvent *pEvent, DWORD dwAddr);
     BOOL HasMemBP(CBaseEvent *pEvent, DWORD dwAddr, tagPageBP **ppPageBP);
     BOOL HasNormalBP(CBaseEvent *pEvent, DWORD dwAddr, tagNormalBP **ppNormalBP);

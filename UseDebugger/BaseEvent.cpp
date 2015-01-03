@@ -22,6 +22,7 @@ CBaseEvent::CBaseEvent()
     m_bTalk = FALSE;
 
     m_dwAddr = NULL;
+    m_dwFS   = NULL;
 
     m_bAccessVioTF = FALSE;
     m_bNormalBPTF = FALSE;
@@ -67,16 +68,10 @@ CBaseEvent::IsCall(DWORD *pnLen)
     UINT nCodeSize;
      
     //not a good idea to use EIP as default, not universal...., but makes the caller easier
-    BOOL bRet = ReadProcessMemory(
-                        m_hProcess, 
-                        (LPVOID)(m_Context.Eip),
-                        szCodeBuf,
-                        sizeof(szCodeBuf),
-                        NULL);
-    
+    BOOL bRet = ReadBuf(m_hProcess, (LPVOID)m_Context.Eip, szCodeBuf, sizeof(szCodeBuf));    
     if (!bRet)
     {
-        CUI::ShowErrorMessage();
+        return FALSE;
     }
     
     Decode2AsmOpcode((PBYTE)szCodeBuf,
@@ -96,4 +91,26 @@ CBaseEvent::IsCall(DWORD *pnLen)
     }
 
     return FALSE;
+}
+
+/************************************************************************/
+/*                                                                      */
+/************************************************************************/
+BOOL 
+CBaseEvent::ReadBuf(HANDLE hProcess, LPVOID lpAddr, LPVOID lpBuf, SIZE_T nSize)
+{
+    BOOL bRet = ReadProcessMemory(
+                        hProcess, 
+                        lpAddr,
+                        lpBuf,
+                        nSize,
+                        NULL);
+    
+    if (!bRet)
+    {
+        CUI::ShowErrorMessage();
+        return FALSE;
+    }
+
+    return TRUE;
 }

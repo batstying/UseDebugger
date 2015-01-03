@@ -74,11 +74,10 @@ DWORD CDllEvent::OnOutputString(const CBaseEvent *pEvent)
         return dwContinueStatus;
     }
 
-    bRet = ReadProcessMemory(pEvent->m_hProcess,
+    bRet = ReadBuf(pEvent->m_hProcess, 
                             outputInfo.lpDebugStringData,     
                             pstrBuf,
-                            nLen,
-                            NULL);
+                            nLen);
     if (!bRet)
     {
         CUI::ShowErrorMessage();
@@ -135,23 +134,22 @@ BOOL CDllEvent::GetImageName(const CBaseEvent *pEvent)
 
     //Debuggers must be prepared to handle the case where lpImageName is NULL
     //or *lpImageName (in the address space of the process being debugged) is NULL.
-    bRet = ReadProcessMemory(hProcess,
-                             loadDllInfo.lpImageName,
-                             &ptrImageName,
-                             sizeof(DWORD),
-                             NULL);
+    bRet = ReadBuf(hProcess,
+                    loadDllInfo.lpImageName,
+                    &ptrImageName,
+                    sizeof(DWORD)
+                    );
 
     if (!bRet)
     {
-        CUI::ShowErrorMessage();
         return FALSE;
     }
 
-    bRet = ReadProcessMemory(hProcess,
-                            (LPVOID)ptrImageName,
-                            szBuf,
-                            MAX_PATH * 2,
-                            NULL);
+    bRet = ReadBuf(hProcess,
+                  (LPVOID)ptrImageName,
+                  szBuf,
+                  MAX_PATH * 2
+                  );
 
     if (!bRet)
     {

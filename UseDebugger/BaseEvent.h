@@ -19,12 +19,14 @@ public:
 
 public: 
     virtual BOOL IsCall(DWORD *pnLen);
+    virtual BOOL ReadBuf(HANDLE hProcess, LPVOID lpAddr, LPVOID lpBuf, SIZE_T nSize);
 
 public:
     CUI *m_pUI;
     HANDLE m_hProcess;
     HANDLE m_hThread;
     DWORD  m_dwOEP;
+    DWORD  m_dwFS;          //to avoid frequently asking TIB
     DEBUG_EVENT m_debugEvent;
     CONTEXT m_Context;
     BOOL m_bTalk;           //whether interact with the user

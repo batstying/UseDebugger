@@ -74,8 +74,15 @@ protected:
     virtual BOOL DoImport(int argc, int pargv[], const char *pszBuf); 
     virtual BOOL DoLog(int argc, int pargv[], const char *pszBuf);
 
+    //extended function
+    virtual BOOL DoTrace(int argc, int pargv[], const char *pszBuf);
+    //virtual BOOL DoShowSEH(int argc, int pargv[], const char *pszBuf);
+    //virtual BOOL MonitorSEH(CBaseEvent *pEvent);
+
 public:
     virtual BOOL DoBP(int argc, int pargv[], const char *pszBuf);       //-->CExceptEvent
+    virtual BOOL MonitorSEH(CBaseEvent *pEvent);
+    virtual BOOL DoShowSEH(int argc, int pargv[], const char *pszBuf);
 
 private:
     void DispatchCommand();
