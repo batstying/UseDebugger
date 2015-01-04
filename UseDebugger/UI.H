@@ -15,7 +15,7 @@ public:
     virtual void ExportScript();
     virtual void ImportScript();
     virtual void Log();
-    virtual void Trace();
+    virtual void PreTrace();
     virtual void TraceLog(const char *pszInfo);
 
     //display menus

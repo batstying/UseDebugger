@@ -15,11 +15,7 @@ class CBaseEvent
 {
 public:
 	CBaseEvent();
-	virtual ~CBaseEvent();
-
-public: 
-    virtual BOOL IsCall(DWORD *pnLen);
-    virtual BOOL ReadBuf(HANDLE hProcess, LPVOID lpAddr, LPVOID lpBuf, SIZE_T nSize);
+	virtual ~CBaseEvent();   
 
 public:
     CUI *m_pUI;
@@ -40,6 +36,8 @@ public:
     BOOL  m_bStepOverTF;    //used for Step Over
 
     BOOL  m_bTmpBP;         //tmp NormalBP set by the Debugger self.
+
+    BOOL  m_bTrace;         //used for trace
 };
 
 #endif // !defined(AFX_BASEEVENT_H__D36850DA_9A3E_4F74_AB94_05BB537A72D8__INCLUDED_)

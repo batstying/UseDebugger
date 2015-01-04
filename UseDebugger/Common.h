@@ -3,6 +3,7 @@
 
 #pragma warning(disable: 4786)
 #include <windows.h>
+#include <Tlhelp32.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <limits.h>
@@ -13,8 +14,21 @@
 #include <algorithm>
 using namespace std;
 
-#define MAXBUF 1024
+#define MAXBUF  (1024 * 100)
 extern char g_szBuf[MAXBUF];
+
+//////////////////////////////////////////////////////////////////////////
+//structures for dll 
+typedef struct _tagModule
+{
+    DWORD   modBaseAddr;
+    DWORD   modBaseSize; 
+    DWORD   dwOEP;
+    HANDLE  hFile;          //from LOAD_DLL_DEBUG_INFO
+    DWORD   dwBaseOfCode;   
+    DWORD   dwSizeOfCode;
+    char   szPath[MAX_PATH]; 
+}tagModule;
 
 //prototype
 extern "C"

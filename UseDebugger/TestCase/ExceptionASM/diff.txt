@@ -1,0 +1,37 @@
+Comparing files 20150104_trace.txt and NEW.TXT
+***** 20150104_trace.txt
+0040114E:  33C9               xor ecx, ecx       [2]
+00401150:  8909               mov Dword ptr DS:[ecx],ecx   [2]                                  //cause Access Violation
+004010FC:  55                 push ebp           [1]                                                    //¨f¨k¨e¦Ð¨e©¤¨i¡Þ©¦¨²©Èa©¸¦Õ¨U?¨m2
+004010FD:  8BEC               mov ebp, esp       [2]
+***** NEW.TXT
+0040114E:  33C9               xor ecx, ecx       [2]
+00401150:  8909               mov Dword ptr DS:[ecx],ecx   [2]
+004010FC:  55                 push ebp           [1]
+004010FD:  8BEC               mov ebp, esp       [2]
+*****
+
+***** 20150104_trace.txt
+0040114A:  C9                 leave              [1]
+0040114B:  C2 1000            ret 0010           [3]                            //end
+00401152:  C3                 ret                [1]
+0040116B:  33C9               xor ecx, ecx       [2]                            //
+0040116D:  F7F1               div ecx            [2]
+***** NEW.TXT
+0040114A:  C9                 leave              [1]
+0040114B:  C2 1000            ret 0010           [3]
+00401152:  C3                 ret                [1]
+0040116B:  33C9               xor ecx, ecx       [2]
+0040116D:  F7F1               div ecx            [2]
+*****
+
+***** 20150104_trace.txt
+00401191:  CC                 int3               [1]
+00401056:  55                 push ebp           [1]                                    //Access Violation¨e©¤¨i¡Þ©¦¨²©Èa©¸¦Õ¨U?¨m2
+00401057:  8BEC               mov ebp, esp       [2]
+***** NEW.TXT
+00401191:  CC                 int3               [1]
+00401056:  55                 push ebp           [1]
+00401057:  8BEC               mov ebp, esp       [2]
+*****
+

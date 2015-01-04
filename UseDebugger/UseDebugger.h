@@ -60,10 +60,11 @@ protected:
     virtual BOOL DoBPL(int argc, int pargv[], const char *pszBuf);      //-->CExceptEvent
     virtual BOOL DoBPC(int argc, int pargv[], const char *pszBuf);      //-->CExceptEvent
 
-    virtual BOOL DoBM(int argc, int pargv[], const char *pszBuf);       //-->CExceptEvent
+    //virtual BOOL DoBM(int argc, int pargv[], const char *pszBuf);       //-->CExceptEvent
+    //virtual BOOL DoBM(int argc, int pargv[], const char *pszBuf, BOOL bTrace);       //-->CExceptEvent
     virtual BOOL DoBML(int argc, int pargv[], const char *pszBuf);      //-->CExceptEvent
     virtual BOOL DoBMPL(int argc, int pargv[], const char *pszBuf);      //-->CExceptEvent
-    virtual BOOL DoBMC(int argc, int pargv[], const char *pszBuf);      //-->CExceptEvent
+    //virtual BOOL DoBMC(int argc, int pargv[], const char *pszBuf);      //-->CExceptEvent
 
     virtual BOOL DoBH(int argc, int pargv[], const char *pszBuf);       //-->CExceptEvent
     virtual BOOL DoBHL(int argc, int pargv[], const char *pszBuf);       //-->CExceptEvent
@@ -78,11 +79,18 @@ protected:
     virtual BOOL DoTrace(int argc, int pargv[], const char *pszBuf);
     //virtual BOOL DoShowSEH(int argc, int pargv[], const char *pszBuf);
     //virtual BOOL MonitorSEH(CBaseEvent *pEvent);
+    virtual BOOL DoListModule(int argc, int pargv[], const char *pszBuf);
 
 public:
+    virtual BOOL DoBM(int argc, int pargv[], const char *pszBuf);       //-->CExceptEvent
+    virtual BOOL DoBM(int argc, int pargv[], const char *pszBuf, BOOL bTrace);       //-->CExceptEvent
+    virtual BOOL DoBMC(int argc, int pargv[], const char *pszBuf);      //-->CExceptEvent
     virtual BOOL DoBP(int argc, int pargv[], const char *pszBuf);       //-->CExceptEvent
+    virtual BOOL RemoveTrace(tagModule *pModule);                       
+
     virtual BOOL MonitorSEH(CBaseEvent *pEvent);
     virtual BOOL DoShowSEH(int argc, int pargv[], const char *pszBuf);
+    virtual BOOL ReadBuf(CBaseEvent *pEvent, HANDLE hProcess, LPVOID lpAddr, LPVOID lpBuf, SIZE_T nSize);
 
 private:
     void DispatchCommand();

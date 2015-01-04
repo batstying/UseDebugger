@@ -342,7 +342,7 @@ void CUI::Log()
 Function : prepare file for trace log                                    */
 /************************************************************************/
 void
-CUI::Trace()
+CUI::PreTrace()
 {
     printf("Please Select the File You want to Save the trace log:\r\n");
     

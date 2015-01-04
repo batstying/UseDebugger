@@ -58,7 +58,7 @@ DWORD CProcessEvent::OnCreateProcess(CBaseEvent *pEvent)
     }
 
     //now monitor the main thread's SEH
-    ((CUseDebugger *)pEvent)->MonitorSEH(pEvent);
+    //((CUseDebugger *)pEvent)->MonitorSEH(pEvent);
 
     return dwContinueStatus;
 }
@@ -83,3 +83,5 @@ DWORD CProcessEvent::OnExitProcess(const CBaseEvent *pEvent)
     m_pUI->ShowInfo(g_szBuf);
     return dwContinueStatus;
 }
+
+//EXCEPTION_ACCESS_VIOLATION

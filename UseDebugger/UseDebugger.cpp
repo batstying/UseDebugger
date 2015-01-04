@@ -83,6 +83,7 @@ CUseDebugger::DispatchCommand()
     DISPATCHINPUT("log",    CUseDebugger::DoLog);
     DISPATCHINPUT("trace",  CUseDebugger::DoTrace);
     DISPATCHINPUT("vseh",   CUseDebugger::DoShowSEH);
+    DISPATCHINPUT("lm",     CUseDebugger::DoListModule);
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -568,6 +569,13 @@ CUseDebugger::DoBM(int argc, int pargv[], const char *pszBuf)
 }
 
 BOOL
+CUseDebugger::DoBM(int argc, int pargv[], const char *pszBuf, BOOL bTrace)
+{ 
+    m_bTalk = TRUE;
+    return m_pExceptEvent->DoBM(this, argc, pargv, pszBuf, bTrace);
+}
+
+BOOL
 CUseDebugger::DoBML(int argc, int pargv[], const char *pszBuf)
 {  
     m_bTalk = TRUE;
@@ -656,8 +664,11 @@ BOOL
 CUseDebugger::DoTrace(int argc, int pargv[], const char *pszBuf)
 {
     m_bTalk = TRUE;
-    m_pUI->Trace();
-    return m_pExceptEvent->DoTrace(this, argc, pargv, pszBuf);
+    m_bTrace = TRUE;
+    m_pUI->PreTrace();
+    m_pExceptEvent->DoTrace(this, argc, pargv, pszBuf);
+    m_pDllEvent->DoTrace(this);
+    return TRUE;
 }
 
 BOOL 
@@ -672,6 +683,28 @@ CUseDebugger::MonitorSEH(CBaseEvent *pEvent)
 {
     return m_pExceptEvent->MonitorSEH(pEvent);
 }
+
+BOOL 
+CUseDebugger::ReadBuf(CBaseEvent *pEvent, 
+                      HANDLE hProcess, 
+                      LPVOID lpAddr, 
+                      LPVOID lpBuf, 
+                      SIZE_T nSize)
+{
+    return m_pExceptEvent->ReadBuf(pEvent, hProcess, lpAddr, lpBuf, nSize);
+}
+
+BOOL 
+CUseDebugger::DoListModule(int argc, int pargv[], const char *pszBuf)
+{
+    return m_pDllEvent->DoListModule(this/*, argc, pargv, pszBuf*/);
+}
+
+BOOL 
+CUseDebugger::RemoveTrace(tagModule *pModule)
+{
+    return m_pExceptEvent->RemoveTrace(this, pModule);
+}                    
 
 
 

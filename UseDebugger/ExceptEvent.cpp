@@ -5,6 +5,8 @@
 #include "ExceptEvent.h"
 #include "UseDebugger.h"
 
+#define  MAX_INSTRUCTION    15
+
 static const unsigned char gs_BP = 0xCC;
 static char gs_szCodeBuf[64];
 static char gs_szOpcode[64];
@@ -19,6 +21,8 @@ CExceptEvent::CExceptEvent()
     SYSTEM_INFO  sysInfo;
     GetSystemInfo(&sysInfo);
     m_dwPageSize = sysInfo.dwPageSize;
+
+    m_szLastASM[0] = '\0';
 }
 
 CExceptEvent::~CExceptEvent()
@@ -44,6 +48,7 @@ CExceptEvent::CheckHitMemBP(CBaseEvent *pEvent, DWORD dwAddr, tagPageBP *ppageBP
 
     g_szBuf[0] = '\0';
 
+    const char *pszASM;
     tagMemBPInPage *pmemBPInPage = NULL;
     list<tagMemBPInPage>::iterator it;
     for (it = ppageBP->lstMemBP.begin();
@@ -60,7 +65,15 @@ CExceptEvent::CheckHitMemBP(CBaseEvent *pEvent, DWORD dwAddr, tagPageBP *ppageBP
             {
                 //need to log this instruction
                 bTraced = TRUE;
-                pEvent->m_pUI->TraceLog(this->ShowOneASM(pEvent));  
+                pszASM = this->GetOneASM(pEvent);
+                if (0 == strcmp(pszASM, m_szLastASM))
+                {
+                    //to avoid repeat recording, like repxxx
+                    continue;
+                }
+
+                strcpy(m_szLastASM, pszASM);
+                pEvent->m_pUI->TraceLog(pszASM);  
                 continue;
             }
             
@@ -106,19 +119,6 @@ CExceptEvent::OnAccessViolation(CBaseEvent *pEvent)
     BOOL bRet = HasMemBP(pEvent, dwAddr, &ppageBP);
     if (bRet)
     {
-        //need to restore the protect, (and add PAGE_READWRITE)
-        bRet = VirtualProtectEx(pEvent->m_hProcess,
-                                (LPVOID)dwAddr,
-                                sizeof(gs_BP),
-                                ppageBP->dwOldProtect,
-                                &dwOldProtect
-                                );
-        if (!bRet)
-        {
-            CUI::ShowErrorMessage();
-            return DBG_CONTINUE;    //really?
-        }
-
         //now judge whether hit the MemBP
         bRet = CheckHitMemBP(pEvent, dwAddr, ppageBP);
         if (bRet)
@@ -129,7 +129,20 @@ CExceptEvent::OnAccessViolation(CBaseEvent *pEvent)
                     );
             pEvent->m_pUI->ShowInfo(g_szBuf);
             DoShowRegs(pEvent);
-            pEvent->m_bTalk = TRUE;
+            pEvent->m_bTalk = FALSE;/*TRUE*/;
+        }
+
+        //need to restore the protect, (and add PAGE_READWRITE)
+        bRet = VirtualProtectEx(pEvent->m_hProcess,
+                                (LPVOID)dwAddr,
+                                MAX_INSTRUCTION,
+                                ppageBP->dwOldProtect,
+                                &dwOldProtect
+                                );
+        if (!bRet)
+        {
+            CUI::ShowErrorMessage();
+            return DBG_CONTINUE;    //really?
         }
 
         //need to set single step to restore the protect
@@ -165,10 +178,10 @@ CExceptEvent::OnBreakPoint(CBaseEvent *pEvent)
     static BOOL bSysPoint = TRUE;
     if (bSysPoint)
     {
+        bSysPoint = FALSE;
         pEvent->m_bTalk = TRUE;
         DoShowRegs(pEvent);
 
-        bSysPoint = FALSE;
         return DBG_CONTINUE;
     }
 
@@ -358,7 +371,7 @@ CExceptEvent::HasHitHWBP(CBaseEvent *pEvent)
         //if changing FS:[0], SEH Chain, then no need to interact with the user
         if (hwBP.dwAddr > 0x7F000000)
         {
-            ((CUseDebugger *)pEvent)->DoShowSEH(NULL, NULL, NULL);
+            ((CUseDebugger *)pEvent)->DoShowSEH(NULL, NULL, NULL);            
             pEvent->m_bTalk = FALSE;
         }
 
@@ -437,7 +450,8 @@ CExceptEvent::OnSingleStep(CBaseEvent *pEvent)
 
     if (pEvent->m_Context.Eip > 0x70000000)
     {
-        return DBG_CONTINUE;
+        int i = 0;
+        //return DBG_CONTINUE;
     }
 
     //////////////////////////////////////////////////////////////////////////
@@ -475,10 +489,10 @@ CExceptEvent::OnSingleStep(CBaseEvent *pEvent)
         bRet = HasMemBP(pEvent, m_dwAddr, &ppageBP);
         if (bRet)
         {
-            //need to restore the protect (PAGE_NONACCESS)
+            //need to restore the protect (PAGE_NOACCESS)
             bRet = VirtualProtectEx(pEvent->m_hProcess,
                                     (LPVOID)m_dwAddr,
-                                    sizeof(gs_BP),
+                                    MAX_INSTRUCTION,
                                     ppageBP->dwNewProtect,
                                     &dwOldProtect
                                     );
@@ -569,7 +583,7 @@ CExceptEvent::DoStepOver(CBaseEvent *pEvent/*, int argc, int pargv[], const char
 {
     pEvent->m_bStepOverTF = TRUE;
     DWORD nCodeLen = 0;
-    if (!pEvent->IsCall(&nCodeLen))
+    if (!IsCall(pEvent, &nCodeLen))
     {
         DoStepInto(pEvent);   
     }
@@ -776,32 +790,29 @@ CExceptEvent::DoBP(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf
     tagPageBP *ppageBP = NULL;
     DWORD dwOldProtect;
     bRet = HasMemBP(pEvent, dwAddr, &ppageBP);
-    if (bRet)
-    {
-        //need to restore the protect, (and add PAGE_READWRITE)
-        bRet = VirtualProtectEx(pEvent->m_hProcess,
-                                (LPVOID)dwAddr,
-                                sizeof(gs_BP),
-                                ppageBP->dwOldProtect,
-                                &dwOldProtect
-                                );
-        if (!bRet)
-        {
-            CUI::ShowErrorMessage();
-            return FALSE;
-        }
-    }
 
     //now save the NormalBP
     tagNormalBP normalBP = {0};
-    bRet = ReadBuf(pEvent->m_hProcess,
+    bRet = ReadBuf(pEvent,
+                   pEvent->m_hProcess,
                    (LPVOID)dwAddr,
                    (LPVOID)&normalBP.oldvalue,
-                    sizeof(normalBP.oldvalue)
-                    );
+                   sizeof(normalBP.oldvalue)
+                  );
     if (!bRet)
     {
         return FALSE;
+    }
+
+    //bkz, we've re-enable the MemBP within ReadBuf, not so good
+    if (ppageBP != NULL)
+    {
+        bRet = VirtualProtectEx(pEvent->m_hProcess,
+                            (LPVOID)dwAddr,
+                            MAX_INSTRUCTION,
+                            ppageBP->dwOldProtect,
+                            &dwOldProtect
+                            );
     }
 
     bRet = WriteProcessMemory(pEvent->m_hProcess,
@@ -834,7 +845,7 @@ CExceptEvent::DoBP(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf
     {
         bRet = VirtualProtectEx(pEvent->m_hProcess,
                             (LPVOID)dwAddr,
-                            sizeof(gs_BP),
+                            MAX_INSTRUCTION,
                             ppageBP->dwNewProtect,
                             &dwOldProtect
                             );
@@ -1031,7 +1042,7 @@ CExceptEvent::CheckBMValidity(CBaseEvent *pEvent,
         //now change the protect
         bRet = VirtualProtectEx(pEvent->m_hProcess,
                             (LPVOID)dwPageAddr,
-                            1,
+                            MAX_INSTRUCTION,
                             PAGE_NOACCESS,
                             &dwOldProtect
                              );
@@ -1081,11 +1092,16 @@ CExceptEvent::DoBM(CBaseEvent *pEvent,
     assert(4 == argc);
     assert(pEvent != NULL);
 
+    if (!bTrace)
+    {
+        int i = 0;
+    }
+
     DWORD dwAddr = strtoul(&pszBuf[pargv[1]], NULL, 16);
     assert((dwAddr != 0) && (dwAddr != ULONG_MAX));
 
     char  bpType  = pszBuf[pargv[2]];
-    DWORD dwSize = strtoul(&pszBuf[pargv[3]], NULL, 16);
+    DWORD dwSize = strtoul(&pszBuf[pargv[3]], NULL, 10);
     assert((dwSize != 0) && (dwSize != ULONG_MAX));
     assert(('a' == bpType) || ('w' == bpType));
 
@@ -1331,7 +1347,7 @@ CExceptEvent::DoBMC(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBu
         {
             bRet = VirtualProtectEx(pEvent->m_hProcess,
                                 (LPVOID)dwPageAddr,
-                                1,
+                                MAX_INSTRUCTION,
                                 ppageBP->dwOldProtect,
                                 &dwOldProtect
                                 );
@@ -1646,7 +1662,7 @@ CExceptEvent::DoShowRegs(CBaseEvent *pEvent)
 
 /************************************************************************/
 /* 
-Function : show one instruction pointed by specified dwAddr or eip (if dwAddr not set)
+Function : get one instruction pointed by specified dwAddr or eip (if dwAddr not set)
 
 Params   : pEvent used to take care of modification of BreakPoint
            dwAddr used to indicate where to start decoding, 
@@ -1659,7 +1675,7 @@ Process : take care of modification of BreakPoint, like 0x0CC
           */
 /************************************************************************/
 const char * 
-CExceptEvent::ShowOneASM(CBaseEvent *pEvent,
+CExceptEvent::GetOneASM(CBaseEvent *pEvent,
                        DWORD dwAddr/*=NULL*/, 
                        UINT *pnCodeSize/*=NULL*/)
 {
@@ -1673,7 +1689,8 @@ CExceptEvent::ShowOneASM(CBaseEvent *pEvent,
         dwCodeAddr = dwAddr;
     }
     
-    bRet = ReadBuf(pEvent->m_hProcess, 
+    bRet = ReadBuf(pEvent,
+                   pEvent->m_hProcess, 
                    (LPVOID)dwCodeAddr,
                    gs_szCodeBuf,
                    sizeof(gs_szCodeBuf)
@@ -1710,8 +1727,21 @@ CExceptEvent::ShowOneASM(CBaseEvent *pEvent,
                                 gs_szOpcode, 
                                 gs_szASM, 
                                 nCodeSize);
-    pEvent->m_pUI->ShowInfo(g_szBuf);
 
+    return g_szBuf;
+}
+
+/************************************************************************/
+/*  
+Function : see GetOneAsm                                                  */
+/************************************************************************/
+const char * 
+CExceptEvent::ShowOneASM(CBaseEvent *pEvent,
+                        DWORD dwAddr/*=NULL*/, 
+                       UINT *pnCodeSize/*=NULL*/)
+{
+    GetOneASM(pEvent, dwAddr, pnCodeSize);
+    CUI::ShowInfo(g_szBuf);
     return g_szBuf;
 }
 
@@ -1939,11 +1969,11 @@ CExceptEvent::DoShowSEH(CBaseEvent *pEvent, int argc, int pargv[], const char *p
         return FALSE;
     }
 
-    sprintf(g_szBuf, "SEH Chain Updated******\r\n");
     BOOL bRet;
     tagSEH seh;
 
-    bRet = ReadBuf(pEvent->m_hProcess,
+    bRet = ReadBuf(pEvent,
+                    pEvent->m_hProcess,
                   (LPVOID)dwTIB,
                   &seh,
                   sizeof(tagSEH)
@@ -1959,7 +1989,8 @@ CExceptEvent::DoShowSEH(CBaseEvent *pEvent, int argc, int pargv[], const char *p
     tagSEH *pSEH = (tagSEH *)(seh.ptrNext);
     do 
     {
-        bRet = ReadBuf(pEvent->m_hProcess,
+        bRet = ReadBuf(pEvent,
+                        pEvent->m_hProcess,
                        (LPVOID)pSEH,
                        &seh,
                        sizeof(tagSEH)
@@ -1971,7 +2002,7 @@ CExceptEvent::DoShowSEH(CBaseEvent *pEvent, int argc, int pargv[], const char *p
 
         //set normal bp and MEMBP at the topmost seh handler
         //but not a good idea to check within a loop, low efficiency
-        if (bTopmost)
+        if (/*bTopmost*/FALSE)
         {
             bTopmost = FALSE;
 
@@ -1985,8 +2016,9 @@ CExceptEvent::DoShowSEH(CBaseEvent *pEvent, int argc, int pargv[], const char *p
             int argv1[] = {0, 3, 0x0C, 0x0E};       //this can be a const, used many times
             sprintf(g_szBuf, "bm %p a 4", seh.dwHandler);
             DoBM(pEvent, 4, argv1, g_szBuf, TRUE);
-        }
 
+            sprintf(g_szBuf, "SEH Chain Updated*******\r\n");
+        }
 
         _snprintf(g_szBuf, MAXBUF, "%sAddress: %p   SEH Handler: %p\r\n",
                                   g_szBuf,
@@ -2029,3 +2061,166 @@ CExceptEvent::MonitorSEH(CBaseEvent *pEvent)
 
     return TRUE;
 }
+
+//////////////////////////////////////////////////////////////////////////
+/************************************************************************/
+/* 
+Function : judge whether is call instructions pointed by eip
+Params   : pnLen used to receive the instruction size 
+Return   : TRUE if is call, FALSE otherwise
+
+004012B6  |.  FF15 A8514200 CALL DWORD PTR DS:[<&KERNEL32.GetVersion>;  kernel32.GetVersion
+0040130E  |.  E8 9D2A0000   CALL testDbg.00403DB0                    ; \testDbg.00403DB0
+  
+*/
+/************************************************************************/
+BOOL
+CExceptEvent::IsCall(CBaseEvent *pEvent, DWORD *pnLen)
+{
+    assert(pEvent != NULL);
+    assert(pnLen != NULL);
+
+    static char szCodeBuf[64];
+    static char szOpcode[64];
+    static char szASM[128];
+    UINT nCodeSize;
+     
+    //not a good idea to use EIP as default, not universal...., but makes the caller easier
+    BOOL bRet = ReadBuf(pEvent,
+                        pEvent->m_hProcess, 
+                        (LPVOID)pEvent->m_Context.Eip,
+                        szCodeBuf, 
+                        sizeof(szCodeBuf));    
+    if (!bRet)
+    {
+        return FALSE;
+    }
+    
+    Decode2AsmOpcode((PBYTE)szCodeBuf,
+                    szASM,
+                    szOpcode, 
+                    &nCodeSize,
+                    pEvent->m_Context.Eip);
+
+    *pnLen = nCodeSize;
+
+    if (0 == memcmp(szOpcode, "E8", 2)
+        || 0 == memcmp(szOpcode, "FF15", 4)
+        //others
+        )
+    {
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+/************************************************************************/
+/*  
+Function : read process memory (hProcess)
+          need to considering MemBP
+          pEvent used to take care of MemBP
+
+Remarks  : Be care that we disable and re-enable the MemBP by ourself.
+                                                                    */
+/************************************************************************/
+BOOL 
+CExceptEvent::ReadBuf(CBaseEvent *pEvent, HANDLE hProcess, LPVOID lpAddr, LPVOID lpBuf, SIZE_T nSize)
+{
+    assert(pEvent != NULL);
+
+    //also need to consider MemBP
+    //whether exists memory BP
+    tagPageBP *ppageBP = NULL;
+    DWORD dwOldProtect;
+    BOOL  bHasMemBP = FALSE;
+    BOOL bRet = HasMemBP(pEvent, (DWORD)lpAddr, &ppageBP);
+    if (bRet)
+    {
+        bHasMemBP = TRUE;
+
+        //need to restore the protect, (and add PAGE_READWRITE)
+        bRet = VirtualProtectEx(pEvent->m_hProcess,
+                                (LPVOID)lpAddr,
+                                nSize,
+                                ppageBP->dwOldProtect,
+                                &dwOldProtect
+                                );
+        if (!bRet)
+        {
+            CUI::ShowErrorMessage();
+            return FALSE;
+        }
+    }
+
+    //
+    bRet = ReadProcessMemory(
+                    hProcess, 
+                    lpAddr,
+                    lpBuf,
+                    nSize,
+                    NULL);
+    
+    if (!bRet)
+    {
+        CUI::ShowErrorMessage();
+        return FALSE;
+    }
+
+    //now re-enable Membp
+    if (bHasMemBP)
+    {
+        bRet = VirtualProtectEx(pEvent->m_hProcess,
+                                (LPVOID)lpAddr,
+                                nSize,
+                                ppageBP->dwNewProtect,
+                                &dwOldProtect
+                                );
+        if (!bRet)
+        {
+            CUI::ShowErrorMessage();
+            return FALSE;
+        }   
+    }
+
+    return TRUE;
+}
+
+/************************************************************************/
+/*
+Function : remove the MemBP used for trace
+           usually called when the dll unloaded                                                                     */
+/************************************************************************/
+BOOL 
+CExceptEvent::RemoveTrace(CBaseEvent *pEvent, tagModule *pModule)
+{
+    //bm addr a len
+    //bmc id
+    assert(pEvent != NULL);
+    assert(pModule != NULL);
+
+    //find id first, 
+    DWORD dwAddr = pModule->dwBaseOfCode;
+    DWORD dwSize = pModule->dwSizeOfCode;
+    tagMemBP *pMemBP = NULL;
+    int argv[] = {0, 4};    //bmc id
+    int i = 0;
+    
+    list<tagMemBP>::iterator itMemBP;
+    for (itMemBP = m_lstMemBP.begin();
+         itMemBP != m_lstMemBP.end();
+         itMemBP++, i++)
+    {
+        pMemBP = &(*itMemBP);
+        if (pMemBP->dwAddr == dwAddr
+            && pMemBP->dwSize == dwSize
+            && pMemBP->bTrace)
+        {
+            sprintf(g_szBuf, "bmc %d", i);
+            ((CUseDebugger *)pEvent)->DoBMC(2, argv, g_szBuf);
+            break;
+        }
+    }
+    
+    return TRUE;
+}                     

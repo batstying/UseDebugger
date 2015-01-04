@@ -190,18 +190,25 @@ public:
     virtual BOOL DoShowData(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf); 
     virtual BOOL DoShowASM(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf);
     virtual const char * ShowOneASM(CBaseEvent *pEvent, DWORD dwAddr = NULL, UINT *pnCodeSize = NULL);
+    virtual const char * GetOneASM(CBaseEvent *pEvent, DWORD dwAddr = NULL, UINT *pnCodeSize = NULL);
     virtual void ShowTwoASM(CBaseEvent *pEvent, DWORD dwAddr = NULL); 
     virtual void DoShowRegs(CBaseEvent *pEvent); 
 
     //extended function
     virtual BOOL DoTrace(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf);
+    virtual BOOL RemoveTrace(CBaseEvent *pEvent, tagModule *pModule);                       
     virtual BOOL DoShowSEH(CBaseEvent *pEvent, int argc, int pargv[], const char *pszBuf);
     virtual BOOL MonitorSEH(CBaseEvent *pEvent);
 
+
     //
     DWORD GetTIB(CBaseEvent *pEvent);
+    virtual BOOL ReadBuf(CBaseEvent *pEvent, HANDLE hProcess, LPVOID lpAddr, LPVOID lpBuf, SIZE_T nSize);
 
 protected:
+    //
+    virtual BOOL IsCall(CBaseEvent *pEvent, DWORD *pnLen);
+
     //
     BOOL CheckHitMemBP(CBaseEvent *pEvent, DWORD dwAddr, tagPageBP *ppageBP);
     BOOL CheckBMValidity(CBaseEvent *pEvent, tagMemBP *pMemBP);
@@ -219,6 +226,9 @@ protected:
     map<DWORD, tagNormalBP> m_mapAddr_NormBP;  //Ò»°ã¶Ïµã
 
     DWORD m_dwPageSize;
+
+    //used for remove repeat instructions, like repxx
+    char m_szLastASM[MAXBYTE];
 };
 
 #endif // !defined(AFX_EXCEPTEVENT_H__2B93A038_E851_4B9A_9F4E_19619B6852D6__INCLUDED_)
